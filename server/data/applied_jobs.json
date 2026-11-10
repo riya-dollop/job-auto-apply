@@ -1,0 +1,50 @@
+[
+  {
+    "id": "app_1794339957510_0ryhc",
+    "jobId": "0ca6f3f04785050f",
+    "title": "MERN Stack Developer Intern - Faridabad",
+    "company": "Unknown Company",
+    "location": "Unknown Location",
+    "platform": "Indeed",
+    "url": "https://in.indeed.com/viewjob?jk=0ca6f3f04785050f",
+    "status": "skipped",
+    "errorReason": "External employer site (Not Indeed Easy Apply)",
+    "appliedAt": "2026-11-10T19:45:57.510Z"
+  },
+  {
+    "id": "app_1794339943152_nzjpv",
+    "jobId": "0a52dd8ead63f08d",
+    "title": "MERN Stack Developer",
+    "company": "Unknown Company",
+    "location": "Unknown Location",
+    "platform": "Indeed",
+    "url": "https://in.indeed.com/viewjob?jk=0a52dd8ead63f08d",
+    "status": "skipped",
+    "errorReason": "External employer site (Not Indeed Easy Apply)",
+    "appliedAt": "2026-11-10T19:45:43.152Z"
+  },
+  {
+    "id": "app_1794339303419_4158p",
+    "jobId": "4ef4849982b8414c",
+    "title": "MERN Stack Developer Intern",
+    "company": "Unknown Company",
+    "location": "Unknown Location",
+    "platform": "Indeed",
+    "url": "https://in.indeed.com/viewjob?jk=4ef4849982b8414c",
+    "status": "failed",
+    "errorReason": "Attempted to use detached Frame 'ACCAB946BFC9753068040A32D3A76278'.",
+    "appliedAt": "2026-11-10T19:35:03.419Z"
+  },
+  {
+    "id": "app_1794339287855_is8fp",
+    "jobId": "64d913164b995efa",
+    "title": "Full Stack Developer",
+    "company": "Unknown Company",
+    "location": "Unknown Location",
+    "platform": "Indeed",
+    "url": "https://in.indeed.com/viewjob?jk=64d913164b995efa",
+    "status": "skipped",
+    "errorReason": "External employer site (Not Indeed Easy Apply)",
+    "appliedAt": "2026-11-10T19:34:47.855Z"
+  }
+]

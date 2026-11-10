@@ -1,0 +1,36 @@
+# Environment Variables
+.env
+.env.local
+.env.*.local
+*.env
+
+# Dependency Directories
+node_modules/
+client/node_modules/
+
+# Production Build Output
+client/dist/
+dist/
+
+# Sensitive Session Cookies & Runtime Logs
+server/data/cookies.json
+server/data/activity_logs.json
+
+# User Uploaded Resumes (Keep sample or assets folder clean)
+assets/*.pdf
+!assets/resume.pdf
+
+# Logs & Debugging
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Editor & OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
