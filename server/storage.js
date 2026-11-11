@@ -155,7 +155,18 @@ function getLogs() {
 
 // Cookie Management
 function getCookies(platform) {
-  const allCookies = readJson(COOKIES_FILE, { indeed: [], naukri: [] });
+  let allCookies = readJson(COOKIES_FILE, { indeed: [], naukri: [] });
+  
+  // If cookies are empty on disk (e.g. fresh cloud container deploy), fallback to COOKIES_JSON env var
+  if ((!allCookies.indeed || allCookies.indeed.length === 0) && process.env.COOKIES_JSON) {
+    try {
+      const fromEnv = JSON.parse(process.env.COOKIES_JSON);
+      if (fromEnv && typeof fromEnv === 'object') {
+        allCookies = fromEnv;
+      }
+    } catch (e) {}
+  }
+
   if (platform) {
     return allCookies[platform.toLowerCase()] || [];
   }
