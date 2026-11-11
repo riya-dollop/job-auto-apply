@@ -65,34 +65,56 @@ function writeJson(file, data) {
   }
 }
 
+function getPublicResumeUrl(settings) {
+  if (settings && settings.resumeUrl && settings.resumeUrl.trim().startsWith('http')) {
+    return settings.resumeUrl.trim();
+  }
+  const baseUrl = process.env.RENDER_EXTERNAL_URL || 'https://job-auto-apply-izg0.onrender.com';
+  const filename = (settings && settings.resumePath) ? path.basename(settings.resumePath) : 'resume.pdf';
+  return `${baseUrl}/assets/${filename}`;
+}
+
 function getSettings() {
-  return readJson(SETTINGS_FILE, {
+  const settings = readJson(SETTINGS_FILE, {
     candidateName: 'Riya Tiwari',
     candidatePhone: '+91 97553 49572',
     candidateEmail: 'riyatiwari2626@gmail.com',
     resumePath: 'assets/resume.pdf',
+    resumeUrl: 'https://job-auto-apply-izg0.onrender.com/assets/resume.pdf',
     cadenceDays: 15,
     autoSendEnabled: false,
     delaySeconds: 15,
-    messageTemplate: 'Hello {contactPerson} / {company} Team,\n\nHope you are doing well!\n\nI am {candidateName}, a MERN Stack, Frontend & Full-Stack Developer based in Indore, actively looking for developer opportunities.\n\n💻 Core Technical Skills:\n• Frontend: React.js, Next.js, Redux Toolkit, Tailwind CSS, TypeScript\n• Backend: Node.js, Express.js, REST APIs\n• Database: MongoDB, PostgreSQL\n• Tools: Git, Postman, Docker\n\nIf your team at {company} has any openings for Frontend or MERN/Full-Stack Developers, I would love to share my resume and connect for a quick discussion. I have also attached my resume document for your review.\n\n📞 Phone: {candidatePhone}\n✉️ Email: {candidateEmail}\n\nLooking forward to hearing from you. Thank you!\n\nBest regards,\n{candidateName}'
+    messageTemplate: 'Hello {contactPerson} / {company} Team,\n\nHope you are doing well!\n\nI am {candidateName}, a MERN Stack, Frontend & Full-Stack Developer based in Indore, actively looking for developer opportunities.\n\n💻 Core Technical Skills:\n• Frontend: React.js, Next.js, Redux Toolkit, Tailwind CSS, TypeScript\n• Backend: Node.js, Express.js, REST APIs\n• Database: MongoDB, PostgreSQL\n• Tools: Git, Postman, Docker\n\nIf your team at {company} has any openings for Frontend or MERN/Full-Stack Developers, I would love to connect for a quick discussion.\n\n📄 Resume (PDF): {resumeUrl}\n📞 Phone: {candidatePhone}\n✉️ Email: {candidateEmail}\n\nLooking forward to hearing from you. Thank you!\n\nBest regards,\n{candidateName}'
   });
+
+  if (!settings.resumeUrl) {
+    settings.resumeUrl = getPublicResumeUrl(settings);
+  }
+  return settings;
 }
 
 function saveSettings(updates) {
   const current = getSettings();
   const merged = { ...current, ...updates };
+  if (!merged.resumeUrl) {
+    merged.resumeUrl = getPublicResumeUrl(merged);
+  }
   writeJson(SETTINGS_FILE, merged);
   return merged;
 }
 
 function generateMessage(contact, settings) {
   let text = settings.messageTemplate || '';
+  const resumeLink = getPublicResumeUrl(settings);
+
   const map = {
     '{company}': contact.company || 'Team',
     '{contactPerson}': contact.contactPerson || 'Hiring Manager',
     '{candidateName}': settings.candidateName || 'Candidate',
     '{candidatePhone}': settings.candidatePhone || '',
     '{candidateEmail}': settings.candidateEmail || '',
+    '{resumeUrl}': resumeLink,
+    '{resume}': resumeLink,
     '{portfolioUrl}': settings.portfolioUrl || '',
     '{githubUrl}': settings.githubUrl || ''
   };
@@ -100,6 +122,12 @@ function generateMessage(contact, settings) {
   for (const [key, val] of Object.entries(map)) {
     text = text.split(key).join(val);
   }
+
+  // Ensure resume link is in the message if not explicitly placed
+  if (!text.includes(resumeLink) && !text.includes('Resume')) {
+    text += `\n\n📄 Resume: ${resumeLink}`;
+  }
+
   return text.trim();
 }
 

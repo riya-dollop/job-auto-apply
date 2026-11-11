@@ -40,6 +40,9 @@ const upload = multer({
   limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
 });
 
+// Serve uploaded assets (resume PDFs, etc.) publicly
+app.use('/assets', express.static(path.join(__dirname, '../assets')));
+
 // Serve frontend in production or if static build is present
 const CLIENT_DIST = path.join(__dirname, '../client/dist');
 if (fs.existsSync(CLIENT_DIST)) {

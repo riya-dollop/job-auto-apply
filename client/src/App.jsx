@@ -1727,7 +1727,7 @@ export default function App() {
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white leading-relaxed font-sans"
                   />
                   <div className="flex flex-wrap gap-2 mt-2">
-                    {['{company}', '{contactPerson}', '{candidateName}', '{candidatePhone}', '{candidateEmail}', '{resume}'].map(tag => (
+                    {['{company}', '{contactPerson}', '{candidateName}', '{candidatePhone}', '{candidateEmail}', '{resumeUrl}'].map(tag => (
                       <span key={tag} className="text-[10px] font-mono bg-slate-950 border border-slate-800 px-2 py-0.5 rounded text-indigo-400">
                         {tag}
                       </span>
