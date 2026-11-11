@@ -137,9 +137,9 @@ async function injectCookies(page, platform) {
 async function handleExternalApplicationForm(page, resumePath) {
   try {
     const pageUrl = page.url();
-    storage.logActivity('info', `Attempting autofill on external company portal: ${pageUrl.substring(0, 75)}...`);
-    await page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 8000 }).catch(() => {});
-    await microDelay(2000, 3500);
+    storage.logActivity('info', `Visiting & autofilling company careers portal: ${pageUrl.substring(0, 75)}...`);
+    await page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 10000 }).catch(() => {});
+    await microDelay(2500, 4500);
 
     const candidate = {
       name: 'Riya Tiwari',
@@ -148,12 +148,32 @@ async function handleExternalApplicationForm(page, resumePath) {
       email: process.env.INDEED_EMAIL || 'riyatiwari2626@gmail.com',
       phone: '9179831773',
       experienceYears: '2',
+      currentSalary: '450000',
+      expectedSalary: '600000',
       noticePeriod: '15 Days',
-      currentLocation: 'Indore, MP, India'
+      currentLocation: 'Indore, MP, India',
+      linkedin: 'https://www.linkedin.com/in/riya-tiwari',
+      github: 'https://github.com/riya-dollop'
     };
 
-    // 1. Fill Text / Email / Phone / Radios via evaluate
+    // 1. Fill Text / Email / Phone / Radios using React-safe native setter
     await page.evaluate((cand) => {
+      const setInputVal = (el, val) => {
+        try {
+          const proto = el.tagName === 'TEXTAREA' ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
+          const desc = Object.getOwnPropertyDescriptor(proto, 'value');
+          if (desc && desc.set) {
+            desc.set.call(el, val);
+          } else {
+            el.value = val;
+          }
+          el.dispatchEvent(new Event('input', { bubbles: true }));
+          el.dispatchEvent(new Event('change', { bubbles: true }));
+        } catch (e) {
+          el.value = val;
+        }
+      };
+
       const inputs = Array.from(document.querySelectorAll('input, textarea, select'));
       
       inputs.forEach(input => {
@@ -161,38 +181,35 @@ async function handleExternalApplicationForm(page, resumePath) {
         const name = (input.getAttribute('name') || '').toLowerCase();
         const id = (input.getAttribute('id') || '').toLowerCase();
         const placeholder = (input.getAttribute('placeholder') || '').toLowerCase();
-        const label = (input.labels && input.labels[0] ? input.labels[0].innerText : '').toLowerCase();
+        const label = (input.labels && input.labels[0] ? input.labels[0].innerText : input.closest('div')?.innerText || '').toLowerCase();
         const descriptor = `${name} ${id} ${placeholder} ${label}`;
 
         if (type === 'file' || type === 'hidden' || type === 'submit' || type === 'button') return;
 
         // Name
         if ((descriptor.includes('first') && descriptor.includes('name')) || descriptor === 'firstname') {
-          input.value = cand.firstName;
-          input.dispatchEvent(new Event('input', { bubbles: true }));
-          input.dispatchEvent(new Event('change', { bubbles: true }));
+          setInputVal(input, cand.firstName);
         } else if ((descriptor.includes('last') && descriptor.includes('name')) || descriptor === 'lastname') {
-          input.value = cand.lastName;
-          input.dispatchEvent(new Event('input', { bubbles: true }));
-          input.dispatchEvent(new Event('change', { bubbles: true }));
+          setInputVal(input, cand.lastName);
         } else if (descriptor.includes('name') && !descriptor.includes('company') && !descriptor.includes('user') && !descriptor.includes('role')) {
-          input.value = cand.name;
-          input.dispatchEvent(new Event('input', { bubbles: true }));
-          input.dispatchEvent(new Event('change', { bubbles: true }));
+          setInputVal(input, cand.name);
         }
 
         // Email
         if (type === 'email' || descriptor.includes('email')) {
-          input.value = cand.email;
-          input.dispatchEvent(new Event('input', { bubbles: true }));
-          input.dispatchEvent(new Event('change', { bubbles: true }));
+          setInputVal(input, cand.email);
         }
 
         // Phone / Mobile
         if (type === 'tel' || descriptor.includes('phone') || descriptor.includes('mobile') || descriptor.includes('contact')) {
-          input.value = cand.phone;
-          input.dispatchEvent(new Event('input', { bubbles: true }));
-          input.dispatchEvent(new Event('change', { bubbles: true }));
+          setInputVal(input, cand.phone);
+        }
+
+        // Salary / CTC
+        if (descriptor.includes('current ctc') || descriptor.includes('current salary')) {
+          setInputVal(input, cand.currentSalary);
+        } else if (descriptor.includes('expected ctc') || descriptor.includes('expected salary')) {
+          setInputVal(input, cand.expectedSalary);
         }
 
         // Experience
@@ -201,24 +218,25 @@ async function handleExternalApplicationForm(page, resumePath) {
             const opt = Array.from(input.options).find(o => o.text.includes('2') || o.text.includes('1-3') || o.text.includes('Entry') || o.text.includes('Mid'));
             if (opt) input.value = opt.value;
           } else {
-            input.value = cand.experienceYears;
+            setInputVal(input, cand.experienceYears);
           }
-          input.dispatchEvent(new Event('input', { bubbles: true }));
-          input.dispatchEvent(new Event('change', { bubbles: true }));
         }
 
         // Notice period
         if (descriptor.includes('notice')) {
-          input.value = cand.noticePeriod;
-          input.dispatchEvent(new Event('input', { bubbles: true }));
-          input.dispatchEvent(new Event('change', { bubbles: true }));
+          setInputVal(input, cand.noticePeriod);
         }
 
         // Location / City
         if (descriptor.includes('city') || descriptor.includes('location')) {
-          input.value = cand.currentLocation;
-          input.dispatchEvent(new Event('input', { bubbles: true }));
-          input.dispatchEvent(new Event('change', { bubbles: true }));
+          setInputVal(input, cand.currentLocation);
+        }
+
+        // LinkedIn / GitHub
+        if (descriptor.includes('linkedin')) {
+          setInputVal(input, cand.linkedin);
+        } else if (descriptor.includes('github') || descriptor.includes('portfolio') || descriptor.includes('website')) {
+          setInputVal(input, cand.github);
         }
 
         // Checkboxes (Consent / Terms)
@@ -364,7 +382,7 @@ async function runIndeedAutomation(options) {
           continue;
         }
 
-        storage.logActivity('info', `Evaluating: "${card.title}" at "${card.company}" (${card.hasEasyApply ? 'Easily Apply' : 'Standard / External Apply'})`, 'indeed');
+        storage.logActivity('info', `Evaluating: "${card.title}" at "${card.company}"`, 'indeed');
 
         try {
           // Open job page in new tab
@@ -372,37 +390,59 @@ async function runIndeedAutomation(options) {
           await jobPage.goto(card.url, { waitUntil: 'domcontentloaded', timeout: 45000 });
           await microDelay(1500, 3000);
 
-          // Extract exact company and location from job detail page if missing
+          // Extract exact company and location from job detail page using updated testids
           const jobDetails = await jobPage.evaluate(() => {
-            const comp = document.querySelector('[data-testid="inlineHeader-companyName"], [data-company-name="true"], [data-testid="jobsearch-JobInfoHeader-companyName"], .jobsearch-InlineCompanyRating-companyHeader, [class*="JobInfoHeader-companyName"], a[href*="cmp/"]');
-            const loc = document.querySelector('[data-testid="inlineHeader-companyLocation"], [data-testid="jobsearch-JobInfoHeader-companyLocation"], [class*="JobInfoHeader-companyLocation"], [data-testid="job-location"]');
-            const tit = document.querySelector('h1.jobsearch-JobInfoHeader-title, [data-testid="jobsearch-JobInfoHeader-title"], h1');
+            const vjComp = document.querySelector('[data-testid="vj-company-name"]');
+            const metadataEl = document.querySelector('[data-testid="company-info-metadata"]');
+            let company = vjComp ? vjComp.innerText.trim() : null;
+            let location = null;
+
+            if (metadataEl) {
+              const lines = metadataEl.innerText.split('\n').map(l => l.trim()).filter(Boolean);
+              if (lines.length >= 1 && !company) company = lines[0];
+              if (lines.length >= 2) location = lines[1];
+            }
+
+            if (!company) {
+              const compFallback = document.querySelector('[data-testid="inlineHeader-companyName"], [data-company-name="true"], [data-testid="jobsearch-JobInfoHeader-companyName"], .jobsearch-InlineCompanyRating-companyHeader, [class*="JobInfoHeader-companyName"], a[href*="/cmp/"]');
+              if (compFallback) company = compFallback.innerText.trim();
+            }
+
+            if (!location) {
+              const locFallback = document.querySelector('[data-testid="inlineHeader-companyLocation"], [data-testid="jobsearch-JobInfoHeader-companyLocation"], [class*="JobInfoHeader-companyLocation"], [data-testid="job-location"]');
+              if (locFallback) location = locFallback.innerText.trim();
+            }
+
+            const tit = document.querySelector('h1.jobsearch-JobInfoHeader-title, [data-testid="jobsearch-JobInfoHeader-title"], [data-testid="company-info-title-row"], h1');
             return {
-              company: comp ? comp.innerText.trim() : null,
-              location: loc ? loc.innerText.trim() : null,
+              company,
+              location,
               title: tit ? tit.innerText.trim() : null
             };
           });
 
-          if (jobDetails.company && (card.company === 'Unknown Company' || card.company === 'Unknown Employer')) {
+          if (jobDetails.company && (card.company === 'Unknown Company' || card.company === 'Unknown Employer' || !card.company)) {
             card.company = jobDetails.company;
           }
-          if (jobDetails.location && (card.location === 'Unknown Location' || card.location === 'India')) {
+          if (jobDetails.location && (card.location === 'Unknown Location' || card.location === 'India' || !card.location)) {
             card.location = jobDetails.location;
           }
           if (jobDetails.title && !card.title) {
             card.title = jobDetails.title;
           }
 
-          // Find apply button
-          const applyBtn = await jobPage.$('[id*="indeedApplyButton"], button.ia-IndeedApplyButton, [data-testid="indeedApply"], a.ia-IndeedApplyButton');
+          // Find apply button: SmartApply, Indeed Apply, or direct external company site
+          const smartApplyBtn = await jobPage.$('[data-testid="viewjob-indeed-apply"], [data-testid*="indeed-apply"], [id*="indeedApplyButton"], button.ia-IndeedApplyButton, [data-testid="indeedApply"], a.ia-IndeedApplyButton, a[href*="indeedapply"], a[href*="smartapply"]');
           
-          if (applyBtn) {
+          if (smartApplyBtn) {
             storage.logActivity('info', `Clicking "Apply now" for "${card.title}" at ${card.company}...`, 'indeed');
-            await applyBtn.click();
-            await microDelay(2000, 4000);
+            await Promise.all([
+              jobPage.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 20000 }).catch(() => {}),
+              smartApplyBtn.click()
+            ]);
+            await microDelay(2500, 4500);
 
-            // Handle multi-step popup/modal if present
+            // Handle multi-step SmartApply form
             const applicationSuccess = await handleIndeedModal(jobPage, resumePath);
             
             if (applicationSuccess) {
@@ -431,11 +471,11 @@ async function runIndeedAutomation(options) {
             }
           } else {
             // Check for direct external company apply link/button
-            const extBtn = await jobPage.$('a[id*="apply"], button[id*="apply"], a[href*="apply"], [data-testid*="apply"], a.ia-IndeedApplyButton');
+            const extBtn = await jobPage.$('#applyButtonLinkContainer a, #applyButtonLinkContainer button, a[href*="/applystart"], a[data-testid*="apply"], [aria-label*="Apply on company site"], a[id*="apply"], button[id*="apply"], a.ia-IndeedApplyButton');
             let appliedDirect = false;
 
             if (extBtn) {
-              storage.logActivity('info', `Visiting external company site for "${card.title}" at "${card.company}"...`, 'indeed');
+              storage.logActivity('info', `Visiting external company career portal for "${card.title}" at "${card.company}"...`, 'indeed');
               try {
                 const [newPage] = await Promise.all([
                   new Promise(resolve => activeBrowser.once('targetcreated', target => resolve(target.page()))),
@@ -518,73 +558,105 @@ async function runIndeedAutomation(options) {
   }
 }
 
-// Handle Indeed Application Modal steps
+// Handle Indeed SmartApply Steps
 async function handleIndeedModal(page, resumePath) {
   try {
-    let maxSteps = 7;
+    let maxSteps = 8;
     let step = 0;
 
     while (step < maxSteps) {
       step++;
-      await microDelay(1200, 2500);
-
-      // Auto-fill screening questions in Indeed modal
-      await page.evaluate(() => {
-        // 1. Radio buttons: default "Yes" for eligibility, authorization, tech skills
-        const radios = Array.from(document.querySelectorAll('input[type="radio"]'));
-        radios.forEach(radio => {
-          const label = radio.closest('label')?.innerText?.toLowerCase() || '';
-          const val = (radio.value || '').toLowerCase();
-          if (label.includes('yes') || val === 'yes' || val === '1') {
-            radio.click();
-          }
-        });
-
-        // 2. Number inputs / Text inputs for experience: e.g. "How many years of experience..."
-        const textInputs = Array.from(document.querySelectorAll('input[type="text"], input[type="number"]'));
-        textInputs.forEach(input => {
-          if (!input.value) {
-            const label = input.closest('div')?.innerText?.toLowerCase() || '';
-            if (label.includes('year') || label.includes('experience') || label.includes('react') || label.includes('node') || label.includes('mern') || label.includes('how many')) {
-              input.value = '2';
-              input.dispatchEvent(new Event('input', { bubbles: true }));
-              input.dispatchEvent(new Event('change', { bubbles: true }));
-            }
-          }
-        });
-
-        // 3. Dropdowns
-        const selects = Array.from(document.querySelectorAll('select'));
-        selects.forEach(select => {
-          if (!select.value && select.options.length > 1) {
-            const yesOpt = Array.from(select.options).find(o => o.text.toLowerCase().includes('yes') || o.text.includes('2'));
-            if (yesOpt) select.value = yesOpt.value;
-            else select.selectedIndex = 1;
-            select.dispatchEvent(new Event('change', { bubbles: true }));
-          }
-        });
-      });
-
-      // Check if resume upload is requested
-      if (resumePath && fs.existsSync(resumePath)) {
-        const fileInput = await page.$('input[type="file"]');
-        if (fileInput) {
-          storage.logActivity('info', `Attaching resume from ${resumePath}`, 'indeed');
-          await fileInput.uploadFile(resumePath);
-          await microDelay(1500, 2500);
-        }
-      }
+      await microDelay(1500, 2500);
 
       // Check if application is already completed
       const isComplete = await page.evaluate(() => {
-        const bodyText = document.body.innerText || '';
-        return bodyText.includes('Your application has been submitted') ||
-               bodyText.includes('Application submitted') ||
-               bodyText.includes('Return to job search');
+        const bodyText = (document.body.innerText || '').toLowerCase();
+        const url = window.location.href.toLowerCase();
+        return bodyText.includes('your application has been submitted') ||
+               bodyText.includes('application submitted') ||
+               bodyText.includes('return to job search') ||
+               url.includes('post-apply') ||
+               url.includes('submitted');
       });
 
       if (isComplete) {
         return true;
+      }
+
+      // Auto-fill form fields using React-safe native property setter
+      await page.evaluate(() => {
+        const setReactVal = (el, val) => {
+          try {
+            const proto = el.tagName === 'TEXTAREA' ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
+            const desc = Object.getOwnPropertyDescriptor(proto, 'value');
+            if (desc && desc.set) {
+              desc.set.call(el, val);
+            } else {
+              el.value = val;
+            }
+            el.dispatchEvent(new Event('input', { bubbles: true }));
+            el.dispatchEvent(new Event('change', { bubbles: true }));
+          } catch (e) {
+            el.value = val;
+          }
+        };
+
+        const inputs = Array.from(document.querySelectorAll('input, select, textarea'));
+        inputs.forEach(input => {
+          const type = (input.getAttribute('type') || 'text').toLowerCase();
+          const label = (input.labels && input.labels[0] ? input.labels[0].innerText : input.closest('div')?.innerText || '').toLowerCase();
+
+          // Radio questions
+          if (type === 'radio') {
+            const val = (input.value || '').toLowerCase();
+            if (label.includes('yes') || val === 'yes' || val === '1' || val === 'structured') {
+              input.click();
+            }
+          }
+
+          // Checkbox questions
+          if (type === 'checkbox' && !input.checked) {
+            input.click();
+          }
+
+          // Text / Number questions
+          if (type === 'text' || type === 'number' || input.tagName === 'TEXTAREA') {
+            if (label.includes('current ctc') || label.includes('current salary')) {
+              setReactVal(input, '450000');
+            } else if (label.includes('expected ctc') || label.includes('expected salary')) {
+              setReactVal(input, '600000');
+            } else if (label.includes('location') || label.includes('city')) {
+              setReactVal(input, 'Indore');
+            } else if (label.includes('experience') || label.includes('years')) {
+              setReactVal(input, '2');
+            } else if (label.includes('notice')) {
+              setReactVal(input, '15');
+            } else if (!input.value) {
+              setReactVal(input, '2');
+            }
+          }
+
+          // Dropdowns
+          if (input.tagName === 'SELECT' && !input.value) {
+            if (input.options.length > 1) {
+              input.selectedIndex = 1;
+              input.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+          }
+        });
+      });
+
+      await microDelay(1000, 2000);
+
+      // Check if resume upload file input is present
+      if (resumePath && fs.existsSync(resumePath)) {
+        const fileInput = await page.$('input[type="file"], [data-testid="resume-selection-file-resume-radio-card-file-input"]');
+        if (fileInput) {
+          try {
+            await fileInput.uploadFile(resumePath);
+            await microDelay(1200, 2500);
+          } catch (e) {}
+        }
       }
 
       // Look for Continue, Next, Review, or Submit button
@@ -601,11 +673,14 @@ async function handleIndeedModal(page, resumePath) {
       });
 
       if (actionButton && actionButton.asElement()) {
-        const btnText = await page.evaluate(el => el.innerText || el.value, actionButton);
-        await actionButton.click();
-        await microDelay(1500, 3000);
+        const btnText = await page.evaluate(el => (el.innerText || el.value || '').toLowerCase(), actionButton);
+        await Promise.all([
+          page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 15000 }).catch(() => {}),
+          actionButton.click()
+        ]);
+        await microDelay(2000, 4000);
 
-        if (btnText && btnText.toLowerCase().includes('submit')) {
+        if (btnText.includes('submit')) {
           await microDelay(2000, 4000);
           return true;
         }
