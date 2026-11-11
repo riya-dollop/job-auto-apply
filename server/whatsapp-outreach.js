@@ -271,9 +271,10 @@ function resetAllToDue() {
  * Open WhatsApp Web for one-time QR login scan
  */
 async function openWhatsAppLogin() {
+  const isLinux = process.platform === 'linux';
   storage.logActivity('info', 'Launching browser for WhatsApp Web QR login scan...', 'whatsapp');
   const launchOptions = {
-    headless: process.env.HEADLESS === 'true' ? 'new' : false,
+    headless: isLinux ? 'new' : (process.env.HEADLESS === 'true' ? 'new' : false),
     userDataDir: USER_DATA_DIR,
     defaultViewport: null,
     args: [
@@ -281,7 +282,10 @@ async function openWhatsAppLogin() {
       '--no-sandbox',
       '--disable-setuid-sandbox',
       '--disable-dev-shm-usage',
-      '--disable-gpu'
+      '--disable-gpu',
+      '--disable-software-rasterizer',
+      '--no-first-run',
+      '--no-zygote'
     ]
   };
   if (process.env.PUPPETEER_EXECUTABLE_PATH) {
@@ -331,8 +335,9 @@ async function startBatchAutoSend(options = {}) {
 
   (async () => {
     try {
+      const isLinux = process.platform === 'linux';
       const batchLaunchOptions = {
-        headless: process.env.HEADLESS === 'true' ? 'new' : false,
+        headless: isLinux ? 'new' : (process.env.HEADLESS === 'true' ? 'new' : false),
         userDataDir: USER_DATA_DIR,
         defaultViewport: null,
         args: [
@@ -341,7 +346,10 @@ async function startBatchAutoSend(options = {}) {
           '--no-sandbox',
           '--disable-setuid-sandbox',
           '--disable-dev-shm-usage',
-          '--disable-gpu'
+          '--disable-gpu',
+          '--disable-software-rasterizer',
+          '--no-first-run',
+          '--no-zygote'
         ]
       };
       if (process.env.PUPPETEER_EXECUTABLE_PATH) {

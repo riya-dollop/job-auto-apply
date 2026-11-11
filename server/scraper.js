@@ -47,9 +47,11 @@ function checkStopRequested() {
 
 // Launch browser with stealth settings
 async function launchBrowser(headless = false) {
-  storage.logActivity('info', `Launching stealth browser (headless: ${headless})...`);
+  const isLinux = process.platform === 'linux';
+  const isHeadless = isLinux || headless === true || process.env.HEADLESS === 'true';
+
+  storage.logActivity('info', `Launching stealth browser (headless: ${isHeadless})...`);
   
-  const isHeadless = headless || process.env.HEADLESS === 'true';
   const launchOptions = {
     headless: isHeadless ? 'new' : false,
     defaultViewport: null,
@@ -60,6 +62,9 @@ async function launchBrowser(headless = false) {
       '--disable-setuid-sandbox',
       '--disable-dev-shm-usage',
       '--disable-gpu',
+      '--disable-software-rasterizer',
+      '--no-first-run',
+      '--no-zygote',
       '--disable-infobars',
       '--window-position=0,0',
       '--ignore-certificate-errors',

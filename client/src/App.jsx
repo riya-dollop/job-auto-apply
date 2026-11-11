@@ -47,7 +47,7 @@ export default function App() {
   const [location, setLocation] = useState('India');
   const [platform, setPlatform] = useState('both');
   const [resumePath, setResumePath] = useState('');
-  const [headless, setHeadless] = useState(false);
+  const [headless, setHeadless] = useState(true);
   const [minDelay, setMinDelay] = useState(5);
   const [maxDelay, setMaxDelay] = useState(15);
   const [maxApps, setMaxApps] = useState(20);
