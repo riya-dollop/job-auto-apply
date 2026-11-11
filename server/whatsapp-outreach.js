@@ -70,10 +70,11 @@ function getSettings() {
     candidateName: 'Riya Tiwari',
     candidatePhone: '+91 97553 49572',
     candidateEmail: 'riyatiwari2626@gmail.com',
+    resumePath: 'assets/resume.pdf',
     cadenceDays: 15,
     autoSendEnabled: false,
     delaySeconds: 15,
-    messageTemplate: 'Hello {contactPerson} / {company} Team,\n\nHope you are doing well!\n\nI am {candidateName}, a MERN Stack, Frontend & Full-Stack Developer based in Indore, actively looking for developer opportunities.\n\n💻 Core Technical Skills:\n• Frontend: React.js, Next.js, Redux Toolkit, Tailwind CSS, TypeScript\n• Backend: Node.js, Express.js, REST APIs\n• Database: MongoDB, PostgreSQL\n• Tools: Git, Postman, Docker\n\nIf your team at {company} has any openings for Frontend or MERN/Full-Stack Developers, I would love to share my resume and connect for a quick discussion.\n\n📞 Phone: {candidatePhone}\n✉️ Email: {candidateEmail}\n\nLooking forward to hearing from you. Thank you!\n\nBest regards,\n{candidateName}'
+    messageTemplate: 'Hello {contactPerson} / {company} Team,\n\nHope you are doing well!\n\nI am {candidateName}, a MERN Stack, Frontend & Full-Stack Developer based in Indore, actively looking for developer opportunities.\n\n💻 Core Technical Skills:\n• Frontend: React.js, Next.js, Redux Toolkit, Tailwind CSS, TypeScript\n• Backend: Node.js, Express.js, REST APIs\n• Database: MongoDB, PostgreSQL\n• Tools: Git, Postman, Docker\n\nIf your team at {company} has any openings for Frontend or MERN/Full-Stack Developers, I would love to share my resume and connect for a quick discussion. I have also attached my resume document for your review.\n\n📞 Phone: {candidatePhone}\n✉️ Email: {candidateEmail}\n\nLooking forward to hearing from you. Thank you!\n\nBest regards,\n{candidateName}'
   });
 }
 
@@ -433,6 +434,51 @@ async function startBatchAutoSend(options = {}) {
 
           if (sent) {
             await microDelay(2000, 3500);
+
+            // Automatically attach and send Resume PDF document to the HR chat
+            const resumePath = settings.resumePath || 'assets/resume.pdf';
+            const absoluteResumePath = path.isAbsolute(resumePath) ? resumePath : path.resolve(process.cwd(), resumePath);
+            if (fs.existsSync(absoluteResumePath)) {
+              try {
+                storage.logActivity('info', `Attaching resume PDF document for ${contact.company}...`, 'whatsapp');
+                // Click the attach / plus button in WhatsApp Web footer
+                const attachBtn = await page.$('span[data-icon="plus"], span[data-icon="attach-menu-plus"], div[title="Attach"], button[title="Attach"], button[aria-label="Attach"]');
+                if (attachBtn) {
+                  await attachBtn.click();
+                  await microDelay(1200, 2000);
+                }
+
+                // Locate document input
+                let docInput = await page.$('input[accept="*"], input[type="file"]');
+                if (!docInput) {
+                  const docBtn = await page.$('li [data-icon="attach-document"], [data-icon="document"]');
+                  if (docBtn) {
+                    await docBtn.click();
+                    await microDelay(1000, 1800);
+                    docInput = await page.$('input[accept="*"], input[type="file"]');
+                  }
+                }
+
+                if (docInput) {
+                  await docInput.uploadFile(absoluteResumePath);
+                  await microDelay(2500, 4500);
+
+                  // Send button in media preview
+                  const mediaSendBtn = await page.$('span[data-icon="send"], div[aria-label="Send"], button[aria-label="Send"]');
+                  if (mediaSendBtn) {
+                    await mediaSendBtn.click();
+                    await microDelay(2000, 3500);
+                    storage.logActivity('success', `✓ Successfully attached & sent resume PDF to ${contact.company}!`, 'whatsapp');
+                  } else {
+                    await page.keyboard.press('Enter');
+                    await microDelay(2000, 3500);
+                  }
+                }
+              } catch (attachErr) {
+                storage.logActivity('info', `Note: Could not attach PDF for ${contact.company}: ${attachErr.message}`, 'whatsapp');
+              }
+            }
+
             markAsSent(contact.id);
             batchState.successCount++;
             storage.logActivity('success', `✓ Successfully sent WhatsApp hiring message to ${contact.company}!`, 'whatsapp');

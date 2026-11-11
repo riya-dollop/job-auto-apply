@@ -117,16 +117,20 @@ export default function App() {
     candidateName: 'Riya Tiwari',
     candidatePhone: '+91 97553 49572',
     candidateEmail: 'riyatiwari2626@gmail.com',
+    resumePath: 'assets/resume.pdf',
     portfolioUrl: '',
     githubUrl: '',
     cadenceDays: 15,
     autoSendEnabled: false,
     delaySeconds: 20,
-    messageTemplate: 'Hello {contactPerson} / {company} Team,\n\nHope you are doing well!\n\nI am {candidateName}, a MERN Stack, Frontend & Full-Stack Developer based in Indore, actively looking for developer opportunities.\n\n💻 Core Technical Skills:\n• Frontend: React.js, Next.js, Redux Toolkit, Tailwind CSS, TypeScript\n• Backend: Node.js, Express.js, REST APIs\n• Database: MongoDB, PostgreSQL\n• Tools: Git, Postman, Docker\n\nIf your team at {company} has any openings for Frontend or MERN/Full-Stack Developers, I would love to share my resume and connect for a quick discussion.\n\n📞 Phone: {candidatePhone}\n✉️ Email: {candidateEmail}\n\nLooking forward to hearing from you. Thank you!\n\nBest regards,\n{candidateName}'
+    messageTemplate: 'Hello {contactPerson} / {company} Team,\n\nHope you are doing well!\n\nI am {candidateName}, a MERN Stack, Frontend & Full-Stack Developer based in Indore, actively looking for developer opportunities.\n\n💻 Core Technical Skills:\n• Frontend: React.js, Next.js, Redux Toolkit, Tailwind CSS, TypeScript\n• Backend: Node.js, Express.js, REST APIs\n• Database: MongoDB, PostgreSQL\n• Tools: Git, Postman, Docker\n\nIf your team at {company} has any openings for Frontend or MERN/Full-Stack Developers, I would love to share my resume and connect for a quick discussion. I have also attached my resume document for your review.\n\n📞 Phone: {candidatePhone}\n✉️ Email: {candidateEmail}\n\nLooking forward to hearing from you. Thank you!\n\nBest regards,\n{candidateName}'
   });
   const [showSettingsDrawer, setShowSettingsDrawer] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [copiedId, setCopiedId] = useState(null);
+  const [uploadingWhatsAppResume, setUploadingWhatsAppResume] = useState(false);
+  const [whatsappResumeSuccess, setWhatsappResumeSuccess] = useState('');
+  const whatsappResumeInputRef = useRef(null);
   const [newCompanyForm, setNewCompanyForm] = useState({
     company: '',
     contactPerson: '',
@@ -450,6 +454,39 @@ export default function App() {
       }
     } catch (err) {
       alert('Error resetting status');
+    }
+  };
+
+  // Upload Resume for WhatsApp Outreach
+  const handleWhatsAppResumeUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingWhatsAppResume(true);
+    const formData = new FormData();
+    formData.append('resume', file);
+
+    try {
+      const res = await fetch('/api/upload-resume', {
+        method: 'POST',
+        body: formData
+      });
+      const data = await res.json();
+      if (data.success && data.filePath) {
+        setWhatsappSettings(prev => ({
+          ...prev,
+          resumePath: data.filePath,
+          resumeFilename: data.filename
+        }));
+        setWhatsappResumeSuccess(`Uploaded: ${data.filename}`);
+        setTimeout(() => setWhatsappResumeSuccess(''), 4000);
+      } else {
+        alert(data.message || 'Failed to upload resume PDF');
+      }
+    } catch (err) {
+      alert('Error uploading resume PDF');
+    } finally {
+      setUploadingWhatsAppResume(false);
     }
   };
 
@@ -1631,6 +1668,53 @@ export default function App() {
                   </div>
                 </div>
 
+                {/* Resume Upload for WhatsApp Outreach */}
+                <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
+                      <FileText className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold text-white flex items-center gap-2">
+                        Resume Document (PDF) for WhatsApp HRs
+                        {whatsappSettings.resumePath && (
+                          <span className="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded font-normal flex items-center gap-1">
+                            <Check className="w-3 h-3" /> Attached & Sent with Pitch
+                          </span>
+                        )}
+                      </p>
+                      <p className="text-[11px] text-slate-400 truncate max-w-md mt-0.5">
+                        {whatsappSettings.resumeFilename || whatsappSettings.resumePath || 'assets/resume.pdf (Default)'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="file"
+                      ref={whatsappResumeInputRef}
+                      onChange={handleWhatsAppResumeUpload}
+                      accept=".pdf"
+                      className="hidden"
+                    />
+                    <button
+                      type="button"
+                      disabled={uploadingWhatsAppResume}
+                      onClick={() => whatsappResumeInputRef.current?.click()}
+                      className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium rounded-lg flex items-center gap-1.5 border border-slate-700 transition"
+                    >
+                      <Upload className="w-3.5 h-3.5 text-indigo-400" />
+                      {uploadingWhatsAppResume ? 'Uploading...' : 'Upload New Resume (PDF)'}
+                    </button>
+                  </div>
+                </div>
+
+                {whatsappResumeSuccess && (
+                  <p className="text-xs text-emerald-400 font-medium">
+                    ✓ {whatsappResumeSuccess}
+                  </p>
+                )}
+
                 <div>
                   <label className="block text-xs font-medium text-slate-300 mb-1">
                     WhatsApp Message Template (Sent every 15 days for MERN / Frontend / Full-Stack hiring)
@@ -1642,7 +1726,7 @@ export default function App() {
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white leading-relaxed font-sans"
                   />
                   <div className="flex flex-wrap gap-2 mt-2">
-                    {['{company}', '{contactPerson}', '{candidateName}', '{candidatePhone}', '{candidateEmail}'].map(tag => (
+                    {['{company}', '{contactPerson}', '{candidateName}', '{candidatePhone}', '{candidateEmail}', '{resume}'].map(tag => (
                       <span key={tag} className="text-[10px] font-mono bg-slate-950 border border-slate-800 px-2 py-0.5 rounded text-indigo-400">
                         {tag}
                       </span>
