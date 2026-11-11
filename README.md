@@ -23,7 +23,19 @@ A production-ready full-stack job application automation system built with **Nod
    - Logs every applied, failed, and skipped job with its unique ID, title, company, location, URL, and timestamp.
    - Automatically skips already processed jobs to keep your profile clean.
 
-5. **REST API & Live React Dashboard**:
+5. **Recruiter & HR Auto-Reply Engine**:
+   - Automatically monitors your Indeed Messages (`messages.indeed.com`) and Naukri Inbox (`naukri.com/mnjuser/inbox`).
+   - When HR or recruiters reach out regarding job applications, it automatically sends a customized, professional reply with your contact details and availability.
+   - Prevents duplicate replies to the same message thread and avoids replying to your own outgoing messages.
+   - Live message history log in `server/data/auto_replies.json`.
+
+6. **Indore IT Companies WhatsApp Outreach Panel (15-Day Cadence)**:
+   - Dedicated outreach system for 47+ Indore IT companies & HRs.
+   - Formatted hiring pitch for **MERN Stack, Frontend & Full-Stack Developer** opportunities.
+   - Built-in 15-day recurrence tracking (automatically shows who is Due for follow-up and counts down days).
+   - 1-Click WhatsApp Web / App dispatch links with pre-filled company and recruiter customization.
+
+7. **REST API & Live React Dashboard**:
    - `POST /api/start` - Trigger automation with custom job title, location, platform, and delay parameters.
    - `POST /api/stop` - Safely halts browser instances without leaving dangling Chrome processes.
    - `GET /api/status` - Live polling for applied counts, failed attempts, and current Puppeteer action.

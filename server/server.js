@@ -7,6 +7,8 @@ require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
 const storage = require('./storage');
 const scraper = require('./scraper');
+const autoResponder = require('./auto-responder');
+const whatsappOutreach = require('./whatsapp-outreach');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -211,6 +213,286 @@ app.post('/api/cookies', (req, res) => {
   }
 });
 
+// ============================================================
+// AUTO-REPLY RECRUITER & HR MESSAGING ROUTES
+// ============================================================
+
+/**
+ * GET /api/auto-reply/status
+ * Returns current status of auto-reply engine, settings and recent replies.
+ */
+app.get('/api/auto-reply/status', (req, res) => {
+  try {
+    const status = storage.getAutoReplyStatus();
+    res.json({ success: true, data: status });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * GET /api/auto-reply/settings
+ * Returns configured reply template and user preferences.
+ */
+app.get('/api/auto-reply/settings', (req, res) => {
+  try {
+    const settings = storage.getAutoReplySettings();
+    res.json({ success: true, data: settings });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * POST /api/auto-reply/settings
+ * Updates auto-reply configuration (template, candidate info, toggle).
+ */
+app.post('/api/auto-reply/settings', (req, res) => {
+  try {
+    const updated = storage.saveAutoReplySettings(req.body);
+    // Re-initialize scheduler with new interval / status
+    autoResponder.initScheduler();
+    res.json({
+      success: true,
+      message: 'Auto-reply settings saved successfully',
+      data: updated
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * POST /api/auto-reply/check-now
+ * Triggers an immediate inbox scan and auto-replies to recruiter inquiries.
+ */
+app.post('/api/auto-reply/check-now', async (req, res) => {
+  try {
+    if (autoResponder.isScanInProgress()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Auto-reply scan is already currently running in the background.'
+      });
+    }
+
+    storage.logActivity('info', 'Manual auto-reply check triggered from dashboard');
+
+    // Run in background without blocking response
+    autoResponder.runAutoReplyScan().catch(err => {
+      console.error('[Auto-Reply Background Scan Error]', err);
+    });
+
+    res.json({
+      success: true,
+      message: 'Inbox scan and auto-reply triggered in the background.'
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * GET /api/auto-reply/history
+ * Returns full history of all auto-replies sent.
+ */
+app.get('/api/auto-reply/history', (req, res) => {
+  try {
+    const history = storage.getAutoRepliesHistory();
+    res.json({ success: true, total: history.length, data: history });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ============================================================
+// INDORE COMPANIES WHATSAPP OUTREACH ROUTES (15-DAY CADENCE)
+// ============================================================
+
+/**
+ * GET /api/whatsapp/contacts
+ * Returns all 47+ Indore IT company contacts with dynamic 15-day cadence status.
+ */
+app.get('/api/whatsapp/contacts', (req, res) => {
+  try {
+    const contacts = whatsappOutreach.getContacts();
+    const settings = whatsappOutreach.getSettings();
+    const dueCount = contacts.filter(c => c.status === 'due').length;
+    res.json({
+      success: true,
+      total: contacts.length,
+      dueCount,
+      cadenceDays: settings.cadenceDays,
+      data: contacts
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * GET /api/whatsapp/settings
+ */
+app.get('/api/whatsapp/settings', (req, res) => {
+  try {
+    const settings = whatsappOutreach.getSettings();
+    res.json({ success: true, data: settings });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * POST /api/whatsapp/settings
+ */
+app.post('/api/whatsapp/settings', (req, res) => {
+  try {
+    const updated = whatsappOutreach.saveSettings(req.body);
+    res.json({
+      success: true,
+      message: 'WhatsApp outreach settings updated successfully',
+      data: updated
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * POST /api/whatsapp/mark-sent/:id
+ * Marks a company contacted and advances next scheduled date by 15 days.
+ */
+app.post('/api/whatsapp/mark-sent/:id', (req, res) => {
+  try {
+    const result = whatsappOutreach.markAsSent(req.params.id);
+    if (!result) {
+      return res.status(404).json({ success: false, message: 'Contact not found' });
+    }
+    res.json({
+      success: true,
+      message: `Marked message sent for ${result.company}. Next follow-up in 15 days!`,
+      data: result
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * POST /api/whatsapp/contacts
+ * Adds a new IT company contact.
+ */
+app.post('/api/whatsapp/contacts', (req, res) => {
+  try {
+    const newContact = whatsappOutreach.addContact(req.body);
+    res.json({
+      success: true,
+      message: `Added ${newContact.company} to outreach database`,
+      data: newContact
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * PUT /api/whatsapp/contacts/:id
+ */
+app.put('/api/whatsapp/contacts/:id', (req, res) => {
+  try {
+    const updated = whatsappOutreach.updateContact(req.params.id, req.body);
+    if (!updated) {
+      return res.status(404).json({ success: false, message: 'Contact not found' });
+    }
+    res.json({
+      success: true,
+      message: 'Contact updated successfully',
+      data: updated
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * DELETE /api/whatsapp/contacts/:id
+ */
+app.delete('/api/whatsapp/contacts/:id', (req, res) => {
+  try {
+    whatsappOutreach.deleteContact(req.params.id);
+    res.json({ success: true, message: 'Contact deleted successfully' });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * POST /api/whatsapp/reset-due
+ * Resets all contacts to "Due" status for a fresh 15-day outreach round.
+ */
+app.post('/api/whatsapp/reset-due', (req, res) => {
+  try {
+    whatsappOutreach.resetAllToDue();
+    res.json({ success: true, message: 'All 47+ companies reset to Due for fresh 15-day outreach round' });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * POST /api/whatsapp/login-qr
+ * Launches browser with saved profile so user can scan WhatsApp Web QR once.
+ */
+app.post('/api/whatsapp/login-qr', async (req, res) => {
+  try {
+    const result = await whatsappOutreach.openWhatsAppLogin();
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * POST /api/whatsapp/auto-send/start
+ * Launches Puppeteer to automatically iterate through all Due companies and send WhatsApp messages.
+ */
+app.post('/api/whatsapp/auto-send/start', async (req, res) => {
+  try {
+    const result = await whatsappOutreach.startBatchAutoSend(req.body);
+    if (!result.success) {
+      return res.status(400).json(result);
+    }
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * POST /api/whatsapp/auto-send/stop
+ * Halts running automated dispatch.
+ */
+app.post('/api/whatsapp/auto-send/stop', (req, res) => {
+  try {
+    const result = whatsappOutreach.stopBatchAutoSend();
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * GET /api/whatsapp/auto-send/status
+ * Returns current real-time progress of automated WhatsApp dispatcher.
+ */
+app.get('/api/whatsapp/auto-send/status', (req, res) => {
+  try {
+    const status = whatsappOutreach.getBatchRuntimeStatus();
+    res.json({ success: true, data: status });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // Fallback handler for SPA client or API welcome page
 app.use((req, res) => {
   const indexPath = path.join(CLIENT_DIST, 'index.html');
@@ -241,4 +523,5 @@ app.listen(PORT, () => {
   console.log(`💼 Jobs API:   http://localhost:${PORT}/api/jobs`);
   console.log(`======================================================\n`);
   storage.logActivity('info', `Server initialized on port ${PORT}`);
+  autoResponder.initScheduler();
 });

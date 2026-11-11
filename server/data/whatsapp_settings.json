@@ -1,0 +1,12 @@
+{
+  "candidateName": "Riya Tiwari",
+  "candidatePhone": "+91 97553 49572",
+  "candidateEmail": "riyatiwari2626@gmail.com",
+  "portfolioUrl": "",
+  "githubUrl": "",
+  "cadenceDays": 15,
+  "autoSendEnabled": false,
+  "delaySeconds": 20,
+  "messageTemplate": "Hello {contactPerson} / {company} Team,\n\nHope you are doing well!\n\nI am {candidateName}, a MERN Stack, Frontend & Full-Stack Developer based in Indore, actively looking for developer opportunities.\n\n💻 Core Technical Skills:\n• Frontend: React.js, Next.js, Redux Toolkit, Tailwind CSS, TypeScript\n• Backend: Node.js, Express.js, REST APIs\n• Database: MongoDB, PostgreSQL\n• Tools: Git, Postman, Docker\n\nIf your team at {company} has any openings for Frontend or MERN/Full-Stack Developers, I would love to share my resume and connect for a quick discussion.\n\n📞 Phone: {candidatePhone}\n✉️ Email: {candidateEmail}\n\nLooking forward to hearing from you. Thank you!\n\nBest regards,\n{candidateName}"
+}
+

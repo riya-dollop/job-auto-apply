@@ -9,7 +9,10 @@
     "dev": "concurrently -n \"SERVER,CLIENT\" -c \"blue,magenta\" \"node server/server.js\" \"npm --prefix client run dev\"",
     "build:client": "npm --prefix client run build",
     "save-cookies:indeed": "node server/cookie-helper.js indeed",
-    "save-cookies:naukri": "node server/cookie-helper.js naukri"
+    "save-cookies:naukri": "node server/cookie-helper.js naukri",
+    "check-inbox": "node -e \"require('./server/auto-responder').runAutoReplyScan()\"",
+    "login:whatsapp": "node -e \"require('./server/whatsapp-outreach').openWhatsAppLogin()\"",
+    "dispatch:whatsapp": "node -e \"require('./server/whatsapp-outreach').startBatchAutoSend()\""
   },
   "keywords": [
     "puppeteer",

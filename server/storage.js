@@ -5,6 +5,8 @@ const DATA_DIR = path.join(__dirname, 'data');
 const APPLIED_JOBS_FILE = path.join(DATA_DIR, 'applied_jobs.json');
 const COOKIES_FILE = path.join(DATA_DIR, 'cookies.json');
 const LOGS_FILE = path.join(DATA_DIR, 'activity_logs.json');
+const AUTO_REPLY_SETTINGS_FILE = path.join(DATA_DIR, 'auto_reply_settings.json');
+const AUTO_REPLIES_FILE = path.join(DATA_DIR, 'auto_replies.json');
 
 // Ensure data directory exists
 if (!fs.existsSync(DATA_DIR)) {
@@ -18,9 +20,22 @@ function initFile(filePath, defaultContent) {
   }
 }
 
+const DEFAULT_AUTO_REPLY_SETTINGS = {
+  enabled: true,
+  candidateName: 'Riya Tiwari',
+  candidateEmail: 'riyatiwari2626@gmail.com',
+  candidatePhone: '',
+  platform: 'both',
+  checkIntervalMinutes: 15,
+  headless: false,
+  replyTemplate: 'Hello, thank you for reaching out! I am actively looking for new opportunities and would love to connect. I am available for an interview or discussion at your convenience. You can also reach me directly at {phone} or {email}. Looking forward to hearing from you! Best regards, {candidateName}'
+};
+
 initFile(APPLIED_JOBS_FILE, []);
 initFile(COOKIES_FILE, { indeed: [], naukri: [] });
 initFile(LOGS_FILE, []);
+initFile(AUTO_REPLY_SETTINGS_FILE, DEFAULT_AUTO_REPLY_SETTINGS);
+initFile(AUTO_REPLIES_FILE, []);
 
 // In-memory runtime state for live dashboard streaming
 let runtimeState = {
@@ -188,6 +203,83 @@ function resetRuntimeStats() {
   runtimeState.status = 'running';
 }
 
+// ============================================================
+// Auto-Reply Storage & State
+// ============================================================
+
+let autoReplyRuntimeState = {
+  isChecking: false,
+  lastCheckedAt: null,
+  currentAction: 'Auto-responder ready',
+  totalReplied: 0
+};
+
+function getAutoReplySettings() {
+  return readJson(AUTO_REPLY_SETTINGS_FILE, DEFAULT_AUTO_REPLY_SETTINGS);
+}
+
+function saveAutoReplySettings(updates) {
+  const current = getAutoReplySettings();
+  const merged = { ...current, ...updates };
+  writeJson(AUTO_REPLY_SETTINGS_FILE, merged);
+  logActivity('info', 'Auto-reply settings updated successfully');
+  return merged;
+}
+
+function getAutoRepliesHistory() {
+  return readJson(AUTO_REPLIES_FILE, []);
+}
+
+function hasRepliedToThread(platform, threadId) {
+  if (!threadId) return false;
+  const history = getAutoRepliesHistory();
+  return history.some(
+    r => r.platform.toLowerCase() === platform.toLowerCase() && r.threadId === String(threadId)
+  );
+}
+
+function recordAutoReply({ platform, threadId, sender, company, incomingMessage, replySent, status = 'replied', errorReason = null }) {
+  const history = getAutoRepliesHistory();
+  const entry = {
+    id: 'reply_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+    platform,
+    threadId: String(threadId || 'N/A'),
+    sender: sender || 'Recruiter/HR',
+    company: company || 'Company',
+    incomingMessage: incomingMessage || '',
+    replySent: replySent || '',
+    status,
+    errorReason,
+    timestamp: new Date().toISOString()
+  };
+
+  history.unshift(entry);
+  if (history.length > 500) history.pop();
+  writeJson(AUTO_REPLIES_FILE, history);
+
+  if (status === 'replied') {
+    autoReplyRuntimeState.totalReplied++;
+    logActivity('success', `[Auto-Reply Sent] To ${entry.sender} (${entry.company}) on ${platform}`, platform);
+  }
+
+  return entry;
+}
+
+function getAutoReplyStatus() {
+  const history = getAutoRepliesHistory();
+  return {
+    ...autoReplyRuntimeState,
+    settings: getAutoReplySettings(),
+    totalHistoryCount: history.length,
+    recentReplies: history.slice(0, 10)
+  };
+}
+
+function updateAutoReplyStatus(updates) {
+  autoReplyRuntimeState = { ...autoReplyRuntimeState, ...updates };
+  return autoReplyRuntimeState;
+}
+
 module.exports = {
   getAppliedJobs,
   isJobApplied,
@@ -200,7 +292,17 @@ module.exports = {
   getRuntimeStatus,
   updateRuntimeState,
   resetRuntimeStats,
+  // Auto-Reply
+  getAutoReplySettings,
+  saveAutoReplySettings,
+  getAutoRepliesHistory,
+  hasRepliedToThread,
+  recordAutoReply,
+  getAutoReplyStatus,
+  updateAutoReplyStatus,
   DATA_DIR,
-  COOKIES_FILE
+  COOKIES_FILE,
+  AUTO_REPLIES_FILE,
+  AUTO_REPLY_SETTINGS_FILE
 };
 

@@ -145,7 +145,53 @@ This single command launches both:
 
 ---
 
-## 🛠️ 5. DOM Selectors & Maintenance Guide
+## 💬 5. HR Auto-Reply & Recruiter Messages System
+
+When companies or HR recruiters message you on **Indeed** or **Naukri.com**, this system automatically detects the new incoming inquiry and sends a personalized, professional auto-reply.
+
+### How it Works:
+1. **Inbox Scanners**:
+   - Indeed Messages: Inspects `https://messages.indeed.com/` for unread recruiter threads.
+   - Naukri Chat: Inspects `https://www.naukri.com/mnjuser/inbox` for recruiter pings.
+2. **Duplicate Prevention**:
+   - Each thread/conversation is tracked in `server/data/auto_replies.json`. It will **never** reply twice to the same thread, nor will it reply if the last message was already sent by you.
+3. **Customizable Template with Dynamic Tags**:
+   - `{candidateName}`: Replaced with your name (e.g., Riya Tiwari).
+   - `{phone}`: Replaced with your contact number.
+   - `{email}`: Replaced with your email address.
+   - `{company}`: Replaced with the recruiter's company name.
+   - `{sender}`: Replaced with the recruiter's name.
+4. **Triggering Auto-Reply**:
+   - **Dashboard**: Go to the **"HR Auto-Reply & Inbox"** tab, customize your details & message, and click **"Check & Auto-Reply Now"**.
+   - **Automated Background Scheduler**: Runs automatically every 15 minutes (or whatever interval you choose in settings).
+   - **Terminal Command**:
+     ```powershell
+     npm run check-inbox
+     ```
+
+---
+
+## 📱 6. WhatsApp HR Outreach Panel (Indore 47+ IT Companies)
+
+A dedicated hiring outreach panel designed to send personalized WhatsApp messages to **47+ Indore IT companies & HRs** every **15 days** for **MERN Stack / Frontend / Full-Stack Developer** roles.
+
+### Key Capabilities:
+1. **Curated Database**:
+   - 51 Indore & regional tech companies (Crush IT, Corizo, Dewllfox, Engineer Master, Gammastack, Sofmen, Technorizen, Techsolvo, Vertisystem, Wangoes, Canopus, Avery Bit, Cubixsys Tanya HR, Systango, Impetus, Mind Crew, Vkaps, Applatus, etc.).
+2. **15-Day Cadence Engine**:
+   - Tracks the exact date each HR was contacted.
+   - Automatically calculates remaining days until the next 15-day follow-up.
+   - Live filters for **"Due for Outreach"** vs **"Contacted Recently"**.
+3. **1-Click WhatsApp Direct Dispatch**:
+   - Clicking **"Send WhatsApp"** automatically opens WhatsApp Web (`web.whatsapp.com`) or WhatsApp App with the customized hiring message filled in.
+   - Automatically marks the company as sent and reschedules the follow-up for 15 days later.
+4. **Customizable Developer Hiring Template**:
+   - Edit candidate profile, contact details, and tech stack in the Template drawer.
+   - Includes template placeholders: `{company}`, `{contactPerson}`, `{candidateName}`, `{candidatePhone}`, `{candidateEmail}`.
+
+---
+
+## 🛠️ 7. DOM Selectors & Maintenance Guide
 
 Job portals periodically update their frontend classes. If a button or job title fails to be clicked, inspect the element in Chrome Developer Tools (`F12`) and update the selector in `server/scraper.js`:
 

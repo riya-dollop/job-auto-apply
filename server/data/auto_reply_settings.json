@@ -1,0 +1,10 @@
+{
+  "enabled": true,
+  "candidateName": "Riya Tiwari",
+  "candidateEmail": "riyatiwari2626@gmail.com",
+  "candidatePhone": "",
+  "platform": "both",
+  "checkIntervalMinutes": 15,
+  "headless": false,
+  "replyTemplate": "Hello, thank you for reaching out! I am actively looking for new opportunities and would love to connect. I am available for an interview or discussion at your convenience. You can also reach me directly at {phone} or {email}. Looking forward to hearing from you! Best regards, {candidateName}"
+}
