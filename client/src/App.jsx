@@ -16,6 +16,7 @@ import {
   ShieldAlert,
   Terminal,
   UploadCloud,
+  Upload,
   Eye,
   EyeOff,
   MessageSquare,
