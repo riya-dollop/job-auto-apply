@@ -43,7 +43,7 @@ export default function App() {
   // ==========================================
   // Form State (Auto Apply)
   // ==========================================
-  const [keyword, setKeyword] = useState('MERN Stack Developer');
+  const [keyword, setKeyword] = useState('MERN Stack Developer, React Developer, Node.js Developer, Next.js Developer, Full Stack Developer');
   const [location, setLocation] = useState('India');
   const [platform, setPlatform] = useState('both');
   const [resumePath, setResumePath] = useState('');
@@ -137,6 +137,7 @@ export default function App() {
 
   const logEndRef = useRef(null);
   const fileInputRef = useRef(null);
+  const hasAutoStartedRef = useRef(false);
 
   // Polling runtime status, jobs, auto-reply & whatsapp data
   useEffect(() => {
@@ -148,6 +149,37 @@ export default function App() {
     fetchWhatsAppContacts();
     fetchWhatsAppSettings();
     fetchAutoSendStatus();
+
+    // Automatically start auto-apply on first visit if system is idle
+    const autoStartOnVisit = async () => {
+      if (hasAutoStartedRef.current) return;
+      hasAutoStartedRef.current = true;
+      try {
+        const res = await fetch('/api/status');
+        const json = await res.json();
+        if (json.success && json.data && json.data.status === 'idle') {
+          console.log('[Auto-Start] Launching automated application engine on visit...');
+          await fetch('/api/start', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              keyword: 'MERN Stack Developer, React Developer, Node.js Developer, Next.js Developer, Full Stack Developer',
+              location: 'India',
+              platform: 'both',
+              headless: true,
+              minDelay: 5000,
+              maxDelay: 15000,
+              maxApplications: 25
+            })
+          });
+          fetchStatus();
+        }
+      } catch (e) {
+        console.error('[Auto-Start] Initial launch error:', e);
+      }
+    };
+
+    autoStartOnVisit();
 
     const interval = setInterval(() => {
       fetchStatus();
@@ -1047,8 +1079,9 @@ export default function App() {
                               {job.status}
                             </span>
                           </td>
-                          <td className="py-2.5 px-3 text-[11px] text-slate-400 whitespace-nowrap">
-                            {new Date(job.appliedAt).toLocaleDateString()}
+                          <td className="py-2.5 px-3 text-[11px] whitespace-nowrap">
+                            <div className="text-slate-300 font-medium">{new Date(job.appliedAt).toLocaleDateString()}</div>
+                            <div className="text-[10px] text-indigo-400 font-mono">{new Date(job.appliedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}</div>
                           </td>
                           <td className="py-2.5 px-3 text-right">
                             {job.url ? (

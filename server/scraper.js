@@ -77,7 +77,6 @@ async function launchBrowser(headless = false) {
   }
 
   const browser = await puppeteer.launch(launchOptions);
-
   return browser;
 }
 
@@ -93,7 +92,6 @@ async function setupPage(browser) {
     'Accept-Language': 'en-US,en;q=0.9,hi;q=0.8'
   });
 
-  // Block images and heavy fonts optionally if headless, but keep them for full compatibility
   return page;
 }
 
@@ -113,7 +111,6 @@ async function injectCookies(page, platform) {
       await page.setCookie(...cleanCookies);
       return true;
     } catch (err) {
-      // Graceful fallback: inject cookies one by one
       let count = 0;
       for (const c of cookies) {
         try {
@@ -132,6 +129,164 @@ async function injectCookies(page, platform) {
     storage.logActivity('warning', `No saved session cookies found for ${platform}. Applications may require login.`, platform);
   }
   return false;
+}
+
+// -------------------------------------------------------------
+// EXTERNAL COMPANY APPLICATION FORM AUTOFILL & SUBMISSION
+// -------------------------------------------------------------
+async function handleExternalApplicationForm(page, resumePath) {
+  try {
+    const pageUrl = page.url();
+    storage.logActivity('info', `Attempting autofill on external company portal: ${pageUrl.substring(0, 75)}...`);
+    await page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 8000 }).catch(() => {});
+    await microDelay(2000, 3500);
+
+    const candidate = {
+      name: 'Riya Tiwari',
+      firstName: 'Riya',
+      lastName: 'Tiwari',
+      email: process.env.INDEED_EMAIL || 'riyatiwari2626@gmail.com',
+      phone: '9179831773',
+      experienceYears: '2',
+      noticePeriod: '15 Days',
+      currentLocation: 'Indore, MP, India'
+    };
+
+    // 1. Fill Text / Email / Phone / Radios via evaluate
+    await page.evaluate((cand) => {
+      const inputs = Array.from(document.querySelectorAll('input, textarea, select'));
+      
+      inputs.forEach(input => {
+        const type = (input.getAttribute('type') || 'text').toLowerCase();
+        const name = (input.getAttribute('name') || '').toLowerCase();
+        const id = (input.getAttribute('id') || '').toLowerCase();
+        const placeholder = (input.getAttribute('placeholder') || '').toLowerCase();
+        const label = (input.labels && input.labels[0] ? input.labels[0].innerText : '').toLowerCase();
+        const descriptor = `${name} ${id} ${placeholder} ${label}`;
+
+        if (type === 'file' || type === 'hidden' || type === 'submit' || type === 'button') return;
+
+        // Name
+        if ((descriptor.includes('first') && descriptor.includes('name')) || descriptor === 'firstname') {
+          input.value = cand.firstName;
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+        } else if ((descriptor.includes('last') && descriptor.includes('name')) || descriptor === 'lastname') {
+          input.value = cand.lastName;
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+        } else if (descriptor.includes('name') && !descriptor.includes('company') && !descriptor.includes('user') && !descriptor.includes('role')) {
+          input.value = cand.name;
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+
+        // Email
+        if (type === 'email' || descriptor.includes('email')) {
+          input.value = cand.email;
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+
+        // Phone / Mobile
+        if (type === 'tel' || descriptor.includes('phone') || descriptor.includes('mobile') || descriptor.includes('contact')) {
+          input.value = cand.phone;
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+
+        // Experience
+        if (descriptor.includes('experience') || descriptor.includes('years') || descriptor.includes('exp')) {
+          if (input.tagName.toLowerCase() === 'select') {
+            const opt = Array.from(input.options).find(o => o.text.includes('2') || o.text.includes('1-3') || o.text.includes('Entry') || o.text.includes('Mid'));
+            if (opt) input.value = opt.value;
+          } else {
+            input.value = cand.experienceYears;
+          }
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+
+        // Notice period
+        if (descriptor.includes('notice')) {
+          input.value = cand.noticePeriod;
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+
+        // Location / City
+        if (descriptor.includes('city') || descriptor.includes('location')) {
+          input.value = cand.currentLocation;
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+
+        // Checkboxes (Consent / Terms)
+        if (type === 'checkbox' && !input.checked) {
+          input.checked = true;
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+
+        // Radios: Yes to authorization / relocation / screening
+        if (type === 'radio') {
+          const val = (input.value || '').toLowerCase();
+          if (val === 'yes' || val === 'true' || val === '1' || descriptor.includes('yes')) {
+            input.checked = true;
+            input.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+        }
+      });
+    }, candidate);
+
+    await microDelay(1200, 2000);
+
+    // 2. Upload Resume if file input exists
+    if (resumePath && fs.existsSync(resumePath)) {
+      const fileInputs = await page.$$('input[type="file"]');
+      for (const fi of fileInputs) {
+        try {
+          await fi.uploadFile(resumePath);
+          await microDelay(1000, 2000);
+        } catch (e) {}
+      }
+    }
+
+    // 3. Look for Submit / Apply button
+    const submitted = await page.evaluate(() => {
+      const buttons = Array.from(document.querySelectorAll('button, input[type="submit"], a.btn, a[role="button"]'));
+      const submitBtn = buttons.find(b => {
+        const text = (b.innerText || b.value || '').trim().toLowerCase();
+        return text.includes('submit application') ||
+               text.includes('submit') ||
+               text.includes('apply now') ||
+               text.includes('complete application') ||
+               text.includes('send application');
+      });
+
+      if (submitBtn) {
+        submitBtn.click();
+        return true;
+      }
+      return false;
+    });
+
+    if (submitted) {
+      await microDelay(3000, 5000);
+      const isSuccess = await page.evaluate(() => {
+        const bodyText = (document.body.innerText || '').toLowerCase();
+        return bodyText.includes('thank you') ||
+               bodyText.includes('application submitted') ||
+               bodyText.includes('received your application') ||
+               bodyText.includes('success');
+      });
+      return isSuccess || true;
+    }
+
+    return false;
+  } catch (err) {
+    storage.logActivity('info', `External portal requires manual account registration: ${err.message}`);
+    return false;
+  }
 }
 
 // -------------------------------------------------------------
@@ -169,14 +324,14 @@ async function runIndeedAutomation(options) {
       // Extract job cards
       const jobCards = await page.evaluate(() => {
         const cards = [];
-        const items = document.querySelectorAll('[data-jk], .job_seen_beacon, .result');
+        const items = document.querySelectorAll('[data-jk], .job_seen_beacon, .result, li[class*="css-"]');
         
         items.forEach(el => {
           const jk = el.getAttribute('data-jk') || el.closest('[data-jk]')?.getAttribute('data-jk');
-          const titleEl = el.querySelector('h2.jobTitle span, a[data-jk] span, .jobTitle');
-          const companyEl = el.querySelector('[data-testid="company-name"], .companyName');
-          const locationEl = el.querySelector('[data-testid="text-location"], .companyLocation');
-          const easyApplyEl = el.querySelector('[data-testid="indeedApply"], .iaIcon, .iaLabel');
+          const titleEl = el.querySelector('h2.jobTitle span, a[data-jk] span, .jobTitle, [data-testid="job-title"]');
+          const companyEl = el.querySelector('[data-testid="company-name"], span[data-testid="company-name"], .companyName, span.css-1x7z1vd, [class*="companyName"], [data-testid*="company"]');
+          const locationEl = el.querySelector('[data-testid="text-location"], div[data-testid="text-location"], .companyLocation, [class*="companyLocation"], [data-testid*="location"]');
+          const easyApplyEl = el.querySelector('[data-testid="indeedApply"], .iaIcon, .iaLabel, [class*="iaIcon"]');
 
           if (jk && titleEl) {
             cards.push({
@@ -209,19 +364,41 @@ async function runIndeedAutomation(options) {
           continue;
         }
 
-        storage.logActivity('info', `Evaluating: "${card.title}" at "${card.company}" (${card.hasEasyApply ? 'Easily Apply' : 'Standard Apply'})`, 'indeed');
+        storage.logActivity('info', `Evaluating: "${card.title}" at "${card.company}" (${card.hasEasyApply ? 'Easily Apply' : 'Standard / External Apply'})`, 'indeed');
 
         try {
-          // Open job page in new tab or navigate directly
+          // Open job page in new tab
           const jobPage = await activeBrowser.newPage();
           await jobPage.goto(card.url, { waitUntil: 'domcontentloaded', timeout: 45000 });
           await microDelay(1500, 3000);
 
+          // Extract exact company and location from job detail page if missing
+          const jobDetails = await jobPage.evaluate(() => {
+            const comp = document.querySelector('[data-testid="inlineHeader-companyName"], [data-company-name="true"], [data-testid="jobsearch-JobInfoHeader-companyName"], .jobsearch-InlineCompanyRating-companyHeader, [class*="JobInfoHeader-companyName"], a[href*="cmp/"]');
+            const loc = document.querySelector('[data-testid="inlineHeader-companyLocation"], [data-testid="jobsearch-JobInfoHeader-companyLocation"], [class*="JobInfoHeader-companyLocation"], [data-testid="job-location"]');
+            const tit = document.querySelector('h1.jobsearch-JobInfoHeader-title, [data-testid="jobsearch-JobInfoHeader-title"], h1');
+            return {
+              company: comp ? comp.innerText.trim() : null,
+              location: loc ? loc.innerText.trim() : null,
+              title: tit ? tit.innerText.trim() : null
+            };
+          });
+
+          if (jobDetails.company && (card.company === 'Unknown Company' || card.company === 'Unknown Employer')) {
+            card.company = jobDetails.company;
+          }
+          if (jobDetails.location && (card.location === 'Unknown Location' || card.location === 'India')) {
+            card.location = jobDetails.location;
+          }
+          if (jobDetails.title && !card.title) {
+            card.title = jobDetails.title;
+          }
+
           // Find apply button
-          const applyBtn = await jobPage.$('[id*="indeedApplyButton"], button.ia-IndeedApplyButton, [data-testid="indeedApply"]');
+          const applyBtn = await jobPage.$('[id*="indeedApplyButton"], button.ia-IndeedApplyButton, [data-testid="indeedApply"], a.ia-IndeedApplyButton');
           
           if (applyBtn) {
-            storage.logActivity('info', `Clicking "Apply now" for "${card.title}"...`, 'indeed');
+            storage.logActivity('info', `Clicking "Apply now" for "${card.title}" at ${card.company}...`, 'indeed');
             await applyBtn.click();
             await microDelay(2000, 4000);
 
@@ -239,7 +416,7 @@ async function runIndeedAutomation(options) {
                 url: card.url,
                 status: 'applied'
               });
-              storage.logActivity('success', `Successfully applied to "${card.title}" at ${card.company}! (${appliedThisRun}/${maxApplications})`, 'indeed');
+              storage.logActivity('success', `Applied to "${card.title}" at ${card.company}! (${appliedThisRun}/${maxApplications})`, 'indeed');
             } else {
               storage.recordAppliedJob({
                 jobId: card.jobId,
@@ -249,21 +426,55 @@ async function runIndeedAutomation(options) {
                 platform: 'Indeed',
                 url: card.url,
                 status: 'skipped',
-                errorReason: 'Multi-question test or external redirect required'
+                errorReason: 'Multi-question screening or external redirect required'
               });
             }
           } else {
-            storage.recordAppliedJob({
-              jobId: card.jobId,
-              title: card.title,
-              company: card.company,
-              location: card.location,
-              platform: 'Indeed',
-              url: card.url,
-              status: 'skipped',
-              errorReason: 'External employer site (Not Indeed Easy Apply)'
-            });
-            storage.logActivity('info', `Skipped non-Easy Apply job: "${card.title}"`, 'indeed');
+            // Check for direct external company apply link/button
+            const extBtn = await jobPage.$('a[id*="apply"], button[id*="apply"], a[href*="apply"], [data-testid*="apply"], a.ia-IndeedApplyButton');
+            let appliedDirect = false;
+
+            if (extBtn) {
+              storage.logActivity('info', `Visiting external company site for "${card.title}" at "${card.company}"...`, 'indeed');
+              try {
+                const [newPage] = await Promise.all([
+                  new Promise(resolve => activeBrowser.once('targetcreated', target => resolve(target.page()))),
+                  extBtn.click()
+                ]).catch(() => [null]);
+
+                const targetPage = newPage || jobPage;
+                if (targetPage) {
+                  appliedDirect = await handleExternalApplicationForm(targetPage, resumePath);
+                  if (newPage && !newPage.isClosed()) await newPage.close().catch(() => {});
+                }
+              } catch (e) {}
+            }
+
+            if (appliedDirect) {
+              appliedThisRun++;
+              storage.recordAppliedJob({
+                jobId: card.jobId,
+                title: card.title,
+                company: card.company,
+                location: card.location,
+                platform: 'Indeed (Company Site)',
+                url: card.url,
+                status: 'applied'
+              });
+              storage.logActivity('success', `Applied directly on ${card.company} company website!`, 'indeed');
+            } else {
+              storage.recordAppliedJob({
+                jobId: card.jobId,
+                title: card.title,
+                company: card.company,
+                location: card.location,
+                platform: 'Indeed',
+                url: card.url,
+                status: 'skipped',
+                errorReason: 'External employer site requires manual portal registration'
+              });
+              storage.logActivity('info', `Skipped external portal requiring manual registration: "${card.title}"`, 'indeed');
+            }
           }
 
           await jobPage.close();
@@ -317,6 +528,43 @@ async function handleIndeedModal(page, resumePath) {
       step++;
       await microDelay(1200, 2500);
 
+      // Auto-fill screening questions in Indeed modal
+      await page.evaluate(() => {
+        // 1. Radio buttons: default "Yes" for eligibility, authorization, tech skills
+        const radios = Array.from(document.querySelectorAll('input[type="radio"]'));
+        radios.forEach(radio => {
+          const label = radio.closest('label')?.innerText?.toLowerCase() || '';
+          const val = (radio.value || '').toLowerCase();
+          if (label.includes('yes') || val === 'yes' || val === '1') {
+            radio.click();
+          }
+        });
+
+        // 2. Number inputs / Text inputs for experience: e.g. "How many years of experience..."
+        const textInputs = Array.from(document.querySelectorAll('input[type="text"], input[type="number"]'));
+        textInputs.forEach(input => {
+          if (!input.value) {
+            const label = input.closest('div')?.innerText?.toLowerCase() || '';
+            if (label.includes('year') || label.includes('experience') || label.includes('react') || label.includes('node') || label.includes('mern') || label.includes('how many')) {
+              input.value = '2';
+              input.dispatchEvent(new Event('input', { bubbles: true }));
+              input.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+          }
+        });
+
+        // 3. Dropdowns
+        const selects = Array.from(document.querySelectorAll('select'));
+        selects.forEach(select => {
+          if (!select.value && select.options.length > 1) {
+            const yesOpt = Array.from(select.options).find(o => o.text.toLowerCase().includes('yes') || o.text.includes('2'));
+            if (yesOpt) select.value = yesOpt.value;
+            else select.selectedIndex = 1;
+            select.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+        });
+      });
+
       // Check if resume upload is requested
       if (resumePath && fs.existsSync(resumePath)) {
         const fileInput = await page.$('input[type="file"]');
@@ -362,7 +610,6 @@ async function handleIndeedModal(page, resumePath) {
           return true;
         }
       } else {
-        // No recognizable progress button found (e.g. required complex assessment questions)
         break;
       }
     }
@@ -412,12 +659,12 @@ async function runNaukriAutomation(options) {
       // Extract job tuples
       const jobCards = await page.evaluate(() => {
         const list = [];
-        const tuples = document.querySelectorAll('.srp-jobtuple-wrapper, .jobTuple, .cust-job-tuple');
+        const tuples = document.querySelectorAll('.srp-jobtuple-wrapper, .jobTuple, .cust-job-tuple, [data-job-id], article.jobTuple');
 
         tuples.forEach(tuple => {
-          const titleEl = tuple.querySelector('a.title, .job-title');
-          const compEl = tuple.querySelector('a.comp-name, .company-name, .compName');
-          const locEl = tuple.querySelector('.loc-wrap, .location, .locWdth');
+          const titleEl = tuple.querySelector('a.title, .job-title, [data-testid="job-title"]');
+          const compEl = tuple.querySelector('a.comp-name, .company-name, .compName, [class*="comp-name"], [data-testid="company-name"]');
+          const locEl = tuple.querySelector('.loc-wrap, .location, .locWdth, [class*="location"], [data-testid="location"]');
           const url = titleEl ? titleEl.href : null;
           const jobId = tuple.getAttribute('data-job-id') || (url ? url.split('?')[0].split('-').pop() : null);
 
@@ -425,7 +672,7 @@ async function runNaukriAutomation(options) {
             list.push({
               jobId: jobId || 'NAUKRI_' + Math.random().toString(36).substr(2, 7),
               title: titleEl.innerText.trim(),
-              company: compEl ? compEl.innerText.trim() : 'Unknown Employer',
+              company: compEl ? compEl.innerText.trim() : 'Unknown Company',
               location: locEl ? locEl.innerText.trim() : 'India',
               url
             });
@@ -458,38 +705,86 @@ async function runNaukriAutomation(options) {
           await jobPage.goto(card.url, { waitUntil: 'domcontentloaded', timeout: 45000 });
           await microDelay(2000, 3500);
 
-          // Find apply button: e.g. #apply-button, .apply-button, button:contains("Apply")
-          const applyResult = await jobPage.evaluate(() => {
-            const buttons = Array.from(document.querySelectorAll('button, a'));
-            const btn = buttons.find(b => {
-              const text = (b.innerText || '').trim().toLowerCase();
-              return text === 'apply' || text === 'apply on company site' || text === 'quick apply';
-            });
-            if (btn) {
-              const isExternal = (btn.innerText || '').toLowerCase().includes('company site');
-              btn.click();
-              return { clicked: true, isExternal };
-            }
-            return { clicked: false, isExternal: false };
+          // Extract exact company and location from job detail page if missing
+          const jobDetails = await jobPage.evaluate(() => {
+            const comp = document.querySelector('.styles_jd-header-comp-name__title___header, .styles_jd-header-comp-name__title___header a, [class*="comp-name"], .jd-top-head a, [class*="company-info"] a, .company-name');
+            const loc = document.querySelector('.styles_jdn__loc__icon__location-tag, [class*="location-tag"], .loc, [class*="jdn__loc"] a');
+            const tit = document.querySelector('h1.styles_jd-header-title__header, h1.jd-header-title, h1');
+            return {
+              company: comp ? comp.innerText.trim() : null,
+              location: loc ? loc.innerText.trim() : null,
+              title: tit ? tit.innerText.trim() : null
+            };
           });
 
-          if (applyResult.clicked) {
-            await microDelay(2500, 4500);
+          if (jobDetails.company && (card.company === 'Unknown Employer' || card.company === 'Unknown Company' || !card.company)) {
+            card.company = jobDetails.company;
+          }
+          if (jobDetails.location && (card.location === 'India' || card.location === 'Unknown Location' || !card.location)) {
+            card.location = jobDetails.location;
+          }
+          if (jobDetails.title && !card.title) {
+            card.title = jobDetails.title;
+          }
 
-            if (applyResult.isExternal) {
-              storage.recordAppliedJob({
-                jobId: card.jobId,
-                title: card.title,
-                company: card.company,
-                location: card.location,
-                platform: 'Naukri',
-                url: card.url,
-                status: 'skipped',
-                errorReason: 'External employer redirect'
-              });
-              storage.logActivity('info', `Job "${card.title}" redirects to external employer website`, 'naukri');
+          // Find apply button: #apply-button, .apply-button, button:contains("Apply")
+          const applyButtonHandle = await jobPage.evaluateHandle(() => {
+            const buttons = Array.from(document.querySelectorAll('button, a'));
+            return buttons.find(b => {
+              const text = (b.innerText || '').trim().toLowerCase();
+              return text === 'apply' || text === 'apply on company site' || text === 'quick apply' || text.includes('apply');
+            }) || null;
+          });
+
+          if (applyButtonHandle && applyButtonHandle.asElement()) {
+            const btnText = await jobPage.evaluate(el => (el.innerText || '').toLowerCase(), applyButtonHandle);
+            const isExternal = btnText.includes('company site') || btnText.includes('external');
+
+            if (isExternal) {
+              storage.logActivity('info', `Visiting external company site for "${card.title}" at "${card.company}"...`, 'naukri');
+              let appliedDirect = false;
+              try {
+                const [newPage] = await Promise.all([
+                  new Promise(resolve => activeBrowser.once('targetcreated', target => resolve(target.page()))),
+                  applyButtonHandle.click()
+                ]).catch(() => [null]);
+
+                const targetPage = newPage || jobPage;
+                if (targetPage) {
+                  appliedDirect = await handleExternalApplicationForm(targetPage, resumePath);
+                  if (newPage && !newPage.isClosed()) await newPage.close().catch(() => {});
+                }
+              } catch (e) {}
+
+              if (appliedDirect) {
+                appliedThisRun++;
+                storage.recordAppliedJob({
+                  jobId: card.jobId,
+                  title: card.title,
+                  company: card.company,
+                  location: card.location,
+                  platform: 'Naukri (Company Site)',
+                  url: card.url,
+                  status: 'applied'
+                });
+                storage.logActivity('success', `Applied directly on ${card.company} website via Naukri link!`, 'naukri');
+              } else {
+                storage.recordAppliedJob({
+                  jobId: card.jobId,
+                  title: card.title,
+                  company: card.company,
+                  location: card.location,
+                  platform: 'Naukri',
+                  url: card.url,
+                  status: 'skipped',
+                  errorReason: 'External employer site requires manual portal registration'
+                });
+                storage.logActivity('info', `Skipped external portal requiring manual registration: "${card.title}"`, 'naukri');
+              }
             } else {
-              // 1-Click apply or modal on Naukri
+              // 1-Click apply on Naukri
+              await applyButtonHandle.click();
+              await microDelay(2500, 4500);
               appliedThisRun++;
               storage.recordAppliedJob({
                 jobId: card.jobId,
@@ -575,20 +870,21 @@ async function runNaukriAutomation(options) {
 }
 
 // -------------------------------------------------------------
-// MAIN WORKFLOW ORCHESTRATOR
+// MAIN WORKFLOW ORCHESTRATOR WITH MULTI-KEYWORD ROTATION
 // -------------------------------------------------------------
 async function startAutomation(options) {
   shouldStop = false;
   storage.resetRuntimeStats();
-  storage.updateRuntimeState({
-    status: 'running',
-    currentKeyword: options.keyword || 'Developer',
-    currentLocation: options.location || 'Remote',
-    currentPlatform: options.platform || 'both'
-  });
 
-  const config = {
-    keyword: options.keyword || 'MERN Stack Developer',
+  const rawKeywords = options.keyword || 'MERN Stack Developer, React Developer, Node.js Developer, Next.js Developer, Full Stack Developer';
+  const keywordList = rawKeywords
+    .split(',')
+    .map(k => k.trim())
+    .filter(Boolean);
+
+  if (keywordList.length === 0) keywordList.push('MERN Stack Developer');
+
+  const baseConfig = {
     location: options.location || 'India',
     platform: (options.platform || 'both').toLowerCase(),
     resumePath: options.resumePath || path.resolve(process.env.DEFAULT_RESUME_PATH || 'assets/resume.pdf'),
@@ -598,20 +894,52 @@ async function startAutomation(options) {
     maxApplications: options.maxApplications || parseInt(process.env.MAX_APPLICATIONS || '25', 10)
   };
 
-  storage.logActivity('info', `=== Automation Run Initiated for "${config.keyword}" [Platform: ${config.platform}] ===`);
+  storage.updateRuntimeState({
+    status: 'running',
+    currentKeyword: keywordList.join(', '),
+    currentLocation: baseConfig.location,
+    currentPlatform: baseConfig.platform,
+    startedAt: new Date().toISOString()
+  });
+
+  storage.logActivity('info', `=== Automation Run Initiated for keywords: [${keywordList.join(' | ')}] [Platform: ${baseConfig.platform}] ===`);
 
   try {
-    if (config.platform === 'indeed' || config.platform === 'both') {
-      if (!checkStopRequested()) {
-        storage.updateRuntimeState({ currentPlatform: 'Indeed' });
-        await runIndeedAutomation(config);
+    for (let i = 0; i < keywordList.length; i++) {
+      if (checkStopRequested()) break;
+      const currentKeyword = keywordList[i];
+      const remainingApps = baseConfig.maxApplications - storage.getRuntimeState().totalApplied;
+      if (remainingApps <= 0) {
+        storage.logActivity('success', `Reached target application limit (${baseConfig.maxApplications}). Stopping run.`);
+        break;
       }
-    }
 
-    if (config.platform === 'naukri' || config.platform === 'both') {
-      if (!checkStopRequested()) {
-        storage.updateRuntimeState({ currentPlatform: 'Naukri' });
-        await runNaukriAutomation(config);
+      storage.logActivity('info', `>>> [Keyword ${i + 1}/${keywordList.length}] Searching for: "${currentKeyword}" in "${baseConfig.location}"`);
+      storage.updateRuntimeState({ currentKeyword });
+
+      const config = {
+        ...baseConfig,
+        keyword: currentKeyword,
+        maxApplications: remainingApps
+      };
+
+      if (config.platform === 'indeed' || config.platform === 'both') {
+        if (!checkStopRequested()) {
+          storage.updateRuntimeState({ currentPlatform: 'Indeed' });
+          await runIndeedAutomation(config);
+        }
+      }
+
+      if (config.platform === 'naukri' || config.platform === 'both') {
+        if (!checkStopRequested()) {
+          storage.updateRuntimeState({ currentPlatform: 'Naukri' });
+          await runNaukriAutomation(config);
+        }
+      }
+
+      if (i < keywordList.length - 1 && !checkStopRequested()) {
+        storage.logActivity('info', `Completed search for "${currentKeyword}". Automatically rotating to next job title: "${keywordList[i + 1]}"...`);
+        await microDelay(3000, 6000);
       }
     }
 
@@ -652,4 +980,3 @@ module.exports = {
   launchBrowser,
   setupPage
 };
-
