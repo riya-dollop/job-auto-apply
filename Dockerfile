@@ -39,6 +39,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxtst6 \
     ca-certificates \
     wget \
+    xvfb \
     && rm -rf /var/lib/apt/lists/*
 
 # Point Puppeteer to the system-installed Chromium binary
@@ -68,5 +69,5 @@ ENV NODE_ENV=production
 # Expose backend REST & static server port
 EXPOSE 5000
 
-# Start server
-CMD ["node", "server/server.js"]
+# Start server with Xvfb virtual frame buffer (allows Puppeteer to run headful & headless on Linux without display)
+CMD ["xvfb-run", "--server-args=-screen 0 1280x800x24 -ac", "node", "server/server.js"]

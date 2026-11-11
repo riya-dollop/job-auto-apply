@@ -273,10 +273,16 @@ function resetAllToDue() {
 async function openWhatsAppLogin() {
   storage.logActivity('info', 'Launching browser for WhatsApp Web QR login scan...', 'whatsapp');
   const launchOptions = {
-    headless: false,
+    headless: process.env.HEADLESS === 'true' ? 'new' : false,
     userDataDir: USER_DATA_DIR,
     defaultViewport: null,
-    args: ['--start-maximized', '--no-sandbox', '--disable-setuid-sandbox']
+    args: [
+      '--start-maximized',
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-gpu'
+    ]
   };
   if (process.env.PUPPETEER_EXECUTABLE_PATH) {
     launchOptions.executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
@@ -333,7 +339,9 @@ async function startBatchAutoSend(options = {}) {
           '--start-maximized',
           '--disable-blink-features=AutomationControlled',
           '--no-sandbox',
-          '--disable-setuid-sandbox'
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-gpu'
         ]
       };
       if (process.env.PUPPETEER_EXECUTABLE_PATH) {

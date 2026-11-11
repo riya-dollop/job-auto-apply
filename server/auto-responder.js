@@ -68,14 +68,17 @@ async function injectCookies(page, platform) {
 }
 
 async function launchStealthBrowser(headless = false) {
+  const isHeadless = headless || process.env.HEADLESS === 'true';
   const options = {
-    headless: headless ? 'new' : false,
+    headless: isHeadless ? 'new' : false,
     defaultViewport: null,
     args: [
       '--start-maximized',
       '--disable-blink-features=AutomationControlled',
       '--no-sandbox',
       '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-gpu',
       '--disable-infobars',
       '--window-position=0,0'
     ]
