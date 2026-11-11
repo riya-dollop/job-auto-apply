@@ -301,6 +301,7 @@ module.exports = {
   saveCookies,
   hasValidCookies,
   getRuntimeStatus,
+  getRuntimeState: getRuntimeStatus,
   updateRuntimeState,
   resetRuntimeStats,
   // Auto-Reply

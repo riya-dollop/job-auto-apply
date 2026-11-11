@@ -524,4 +524,25 @@ app.listen(PORT, () => {
   console.log(`======================================================\n`);
   storage.logActivity('info', `Server initialized on port ${PORT}`);
   autoResponder.initScheduler();
+
+  // Automatically start continuous job application engine on boot
+  setTimeout(() => {
+    try {
+      const status = storage.getRuntimeStatus();
+      if (status.status === 'idle') {
+        console.log('[Auto-Engine] Auto-starting continuous job auto-apply engine...');
+        scraper.startAutomation({
+          keyword: 'MERN Stack Developer, React Developer, Node.js Developer, Next.js Developer, Full Stack Developer',
+          location: 'India',
+          platform: 'both',
+          headless: true,
+          minDelay: 4000,
+          maxDelay: 10000,
+          maxApplications: 100
+        });
+      }
+    } catch (e) {
+      console.error('[Auto-Engine] Launch error:', e.message);
+    }
+  }, 2500);
 });

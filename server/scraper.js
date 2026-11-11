@@ -945,7 +945,7 @@ async function runNaukriAutomation(options) {
 }
 
 // -------------------------------------------------------------
-// MAIN WORKFLOW ORCHESTRATOR WITH MULTI-KEYWORD ROTATION
+// MAIN WORKFLOW ORCHESTRATOR WITH CONTINUOUS NON-STOP ENGINE
 // -------------------------------------------------------------
 async function startAutomation(options) {
   shouldStop = false;
@@ -964,9 +964,9 @@ async function startAutomation(options) {
     platform: (options.platform || 'both').toLowerCase(),
     resumePath: options.resumePath || path.resolve(process.env.DEFAULT_RESUME_PATH || 'assets/resume.pdf'),
     headless: options.headless !== undefined ? options.headless : (process.env.HEADLESS === 'true'),
-    minDelay: options.minDelay || parseInt(process.env.MIN_DELAY_MS || '5000', 10),
-    maxDelay: options.maxDelay || parseInt(process.env.MAX_DELAY_MS || '15000', 10),
-    maxApplications: options.maxApplications || parseInt(process.env.MAX_APPLICATIONS || '25', 10)
+    minDelay: options.minDelay || parseInt(process.env.MIN_DELAY_MS || '4000', 10),
+    maxDelay: options.maxDelay || parseInt(process.env.MAX_DELAY_MS || '10000', 10),
+    maxApplications: options.maxApplications || parseInt(process.env.MAX_APPLICATIONS || '100', 10)
   };
 
   storage.updateRuntimeState({
@@ -977,50 +977,61 @@ async function startAutomation(options) {
     startedAt: new Date().toISOString()
   });
 
-  storage.logActivity('info', `=== Automation Run Initiated for keywords: [${keywordList.join(' | ')}] [Platform: ${baseConfig.platform}] ===`);
+  storage.logActivity('info', `=== Continuous Automation Engine Started for [${keywordList.join(' | ')}] [Platform: ${baseConfig.platform}] ===`);
 
   try {
-    for (let i = 0; i < keywordList.length; i++) {
+    let cycle = 1;
+    while (!checkStopRequested()) {
+      storage.logActivity('info', `>>> [Continuous Run - Cycle #${cycle}] Scanning & applying across target job roles...`);
+
+      for (let i = 0; i < keywordList.length; i++) {
+        if (checkStopRequested()) break;
+        const currentKeyword = keywordList[i];
+        const currentStatus = storage.getRuntimeStatus();
+        const remainingApps = Math.max(1, baseConfig.maxApplications - (currentStatus.totalApplied || 0));
+
+        storage.logActivity('info', `>>> [Role ${i + 1}/${keywordList.length}] Searching: "${currentKeyword}" in "${baseConfig.location}"`);
+        storage.updateRuntimeState({ currentKeyword, status: 'running' });
+
+        const config = {
+          ...baseConfig,
+          keyword: currentKeyword,
+          maxApplications: remainingApps
+        };
+
+        if (config.platform === 'indeed' || config.platform === 'both') {
+          if (!checkStopRequested()) {
+            storage.updateRuntimeState({ currentPlatform: 'Indeed' });
+            await runIndeedAutomation(config);
+          }
+        }
+
+        if (config.platform === 'naukri' || config.platform === 'both') {
+          if (!checkStopRequested()) {
+            storage.updateRuntimeState({ currentPlatform: 'Naukri' });
+            await runNaukriAutomation(config);
+          }
+        }
+
+        if (i < keywordList.length - 1 && !checkStopRequested()) {
+          storage.logActivity('info', `Finished search for "${currentKeyword}". Rotating to: "${keywordList[i + 1]}"...`);
+          await microDelay(3000, 6000);
+        }
+      }
+
       if (checkStopRequested()) break;
-      const currentKeyword = keywordList[i];
-      const remainingApps = baseConfig.maxApplications - storage.getRuntimeState().totalApplied;
-      if (remainingApps <= 0) {
-        storage.logActivity('success', `Reached target application limit (${baseConfig.maxApplications}). Stopping run.`);
-        break;
-      }
 
-      storage.logActivity('info', `>>> [Keyword ${i + 1}/${keywordList.length}] Searching for: "${currentKeyword}" in "${baseConfig.location}"`);
-      storage.updateRuntimeState({ currentKeyword });
-
-      const config = {
-        ...baseConfig,
-        keyword: currentKeyword,
-        maxApplications: remainingApps
-      };
-
-      if (config.platform === 'indeed' || config.platform === 'both') {
-        if (!checkStopRequested()) {
-          storage.updateRuntimeState({ currentPlatform: 'Indeed' });
-          await runIndeedAutomation(config);
-        }
-      }
-
-      if (config.platform === 'naukri' || config.platform === 'both') {
-        if (!checkStopRequested()) {
-          storage.updateRuntimeState({ currentPlatform: 'Naukri' });
-          await runNaukriAutomation(config);
-        }
-      }
-
-      if (i < keywordList.length - 1 && !checkStopRequested()) {
-        storage.logActivity('info', `Completed search for "${currentKeyword}". Automatically rotating to next job title: "${keywordList[i + 1]}"...`);
-        await microDelay(3000, 6000);
+      cycle++;
+      storage.logActivity('info', `Cycle #${cycle - 1} completed. Cooling down for 60s before next automatic sweep for newly posted jobs...`);
+      for (let s = 0; s < 60; s++) {
+        if (checkStopRequested()) break;
+        await new Promise(r => setTimeout(r, 1000));
       }
     }
 
-    storage.logActivity('success', '=== Automation Run Finished Successfully ===');
+    storage.logActivity('info', 'Automation halted upon user stop signal.');
   } catch (err) {
-    storage.logActivity('error', `Automation terminated with error: ${err.message}`);
+    storage.logActivity('error', `Automation encountered error: ${err.message}`);
   } finally {
     await stopAutomation();
   }
