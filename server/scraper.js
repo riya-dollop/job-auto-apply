@@ -49,7 +49,7 @@ function checkStopRequested() {
 async function launchBrowser(headless = false) {
   storage.logActivity('info', `Launching stealth browser (headless: ${headless})...`);
   
-  const browser = await puppeteer.launch({
+  const launchOptions = {
     headless: headless ? 'new' : false,
     defaultViewport: null,
     args: [
@@ -62,7 +62,13 @@ async function launchBrowser(headless = false) {
       '--ignore-certificate-errors',
       '--ignore-certificate-errors-spki-list'
     ]
-  });
+  };
+
+  if (process.env.PUPPETEER_EXECUTABLE_PATH) {
+    launchOptions.executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
+  }
+
+  const browser = await puppeteer.launch(launchOptions);
 
   return browser;
 }

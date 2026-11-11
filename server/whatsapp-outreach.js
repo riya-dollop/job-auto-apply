@@ -272,12 +272,16 @@ function resetAllToDue() {
  */
 async function openWhatsAppLogin() {
   storage.logActivity('info', 'Launching browser for WhatsApp Web QR login scan...', 'whatsapp');
-  const browser = await puppeteer.launch({
+  const launchOptions = {
     headless: false,
     userDataDir: USER_DATA_DIR,
     defaultViewport: null,
     args: ['--start-maximized', '--no-sandbox', '--disable-setuid-sandbox']
-  });
+  };
+  if (process.env.PUPPETEER_EXECUTABLE_PATH) {
+    launchOptions.executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
+  }
+  const browser = await puppeteer.launch(launchOptions);
 
   const page = await browser.newPage();
   await page.setUserAgent(
@@ -321,8 +325,8 @@ async function startBatchAutoSend(options = {}) {
 
   (async () => {
     try {
-      activeBrowser = await puppeteer.launch({
-        headless: false, // Visible so WhatsApp doesn't block WebRTC/canvas
+      const batchLaunchOptions = {
+        headless: process.env.HEADLESS === 'true' ? 'new' : false,
         userDataDir: USER_DATA_DIR,
         defaultViewport: null,
         args: [
@@ -331,7 +335,11 @@ async function startBatchAutoSend(options = {}) {
           '--no-sandbox',
           '--disable-setuid-sandbox'
         ]
-      });
+      };
+      if (process.env.PUPPETEER_EXECUTABLE_PATH) {
+        batchLaunchOptions.executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
+      }
+      activeBrowser = await puppeteer.launch(batchLaunchOptions);
 
       const page = await activeBrowser.newPage();
       await page.setUserAgent(

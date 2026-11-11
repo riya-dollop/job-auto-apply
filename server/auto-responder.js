@@ -68,7 +68,7 @@ async function injectCookies(page, platform) {
 }
 
 async function launchStealthBrowser(headless = false) {
-  return await puppeteer.launch({
+  const options = {
     headless: headless ? 'new' : false,
     defaultViewport: null,
     args: [
@@ -79,7 +79,13 @@ async function launchStealthBrowser(headless = false) {
       '--disable-infobars',
       '--window-position=0,0'
     ]
-  });
+  };
+
+  if (process.env.PUPPETEER_EXECUTABLE_PATH) {
+    options.executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
+  }
+
+  return await puppeteer.launch(options);
 }
 
 /**
