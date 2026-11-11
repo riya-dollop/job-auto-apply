@@ -1,4 +1,4 @@
-FROM node:20-slim
+FROM node:22-slim
 
 # Install Chromium and required runtime libraries for Puppeteer on Debian/Ubuntu
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -44,7 +44,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Point Puppeteer to the system-installed Chromium binary
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
     PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium \
-    NODE_ENV=production \
     PORT=5000 \
     HEADLESS=true
 
@@ -54,15 +53,17 @@ WORKDIR /app
 COPY package*.json ./
 COPY client/package*.json ./client/
 
-# Install root & client dependencies
+# Install root & client dependencies (including devDependencies like Vite)
 RUN npm install
-RUN npm --prefix client install
+RUN npm --prefix client install --include=dev
 
 # Copy application source files
 COPY . .
 
 # Build client production bundle (Vite SPA into client/dist)
 RUN npm --prefix client run build
+
+ENV NODE_ENV=production
 
 # Expose backend REST & static server port
 EXPOSE 5000
